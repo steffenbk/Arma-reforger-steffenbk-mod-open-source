@@ -1,0 +1,111 @@
+[ComponentEditorProps(category: "GameScripted/Crater", description: "Temporarily disables crater collision on spawn")]
+class SCR_CraterCollisionDisableComponentClass : ScriptComponentClass
+{
+}
+
+class SCR_CraterCollisionDisableComponent : ScriptComponent
+{
+	[Attribute("300", UIWidgets.Slider, "Collision disable duration (ms)", "100 5000 50")]
+	protected int m_iDisableDurationMs;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Enable collision disable")]
+	protected bool m_bEnableDisable;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Debug output")]
+	protected bool m_bDebug;
+	
+	protected int m_iOriginalInteractionLayer;
+	protected bool m_bCollisionRestored = false;
+	
+	//------------------------------------------------------------------------------------------------
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		
+		if (!Replication.IsServer())
+			return;
+		
+		if (!m_bEnableDisable)
+		{
+			if (m_bDebug)
+				Print("Collision disable not enabled for: " + owner.GetName());
+			return;
+		}
+		
+		// Delay the collision disable to ensure physics is fully initialized
+		GetGame().GetCallqueue().CallLater(DelayedDisableCollision, 50, false);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void DelayedDisableCollision()
+	{
+		IEntity owner = GetOwner();
+		if (!owner)
+			return;
+		
+		Physics physics = owner.GetPhysics();
+		if (!physics)
+		{
+			if (m_bDebug)
+				Print("No physics found on: " + owner.GetName());
+			return;
+		}
+		
+		// Store original interaction layer before disabling
+		m_iOriginalInteractionLayer = physics.GetInteractionLayer();
+		
+		// Disable collision by setting interaction layer to 0
+		physics.SetInteractionLayer(0);
+		m_bCollisionRestored = false;
+		
+		if (m_bDebug)
+			Print("Collision disabled (layer 0) for " + m_iDisableDurationMs.ToString() + "ms on: " + owner.GetName());
+		
+		// Schedule re-enable
+		GetGame().GetCallqueue().CallLater(DelayedEnableCollision, m_iDisableDurationMs, false);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void DelayedEnableCollision()
+	{
+		IEntity owner = GetOwner();
+		if (!owner)
+		{
+			if (m_bDebug)
+				Print("Cannot re-enable collision - entity is null");
+			return;
+		}
+		
+		if (m_bCollisionRestored)
+		{
+			if (m_bDebug)
+				Print("Collision already restored");
+			return;
+		}
+		
+		Physics physics = owner.GetPhysics();
+		if (!physics)
+		{
+			if (m_bDebug)
+				Print("Cannot re-enable collision - physics is null");
+			return;
+		}
+		
+		// Restore original interaction layer
+		physics.SetInteractionLayer(m_iOriginalInteractionLayer);
+		m_bCollisionRestored = true;
+		
+		if (m_bDebug)
+			Print("Collision re-enabled (layer " + m_iOriginalInteractionLayer.ToString() + ") on: " + owner.GetName());
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override void OnDelete(IEntity owner)
+	{
+		// Clean up any pending callbacks
+		GetGame().GetCallqueue().Remove(DelayedDisableCollision);
+		GetGame().GetCallqueue().Remove(DelayedEnableCollision);
+		
+		super.OnDelete(owner);
+	}
+}
