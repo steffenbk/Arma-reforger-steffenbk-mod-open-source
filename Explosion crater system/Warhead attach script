@@ -1,0 +1,1543 @@
+// ========================================
+// PART 1: ENUMS AND CONSTANTS
+// ========================================
+
+//! Terrain type enumeration for crater spawning restrictions
+enum ECraterTerrainType
+{
+    ANY = 0,        //! Can spawn anywhere
+    ROAD_DIRT = 1,  //! Only on dirt roads
+    ROAD_ASPHALT = 2, //! Only on asphalt roads
+    TERRAIN = 3     //! Only on natural terrain (not roads)
+}
+
+// ========================================
+// PART 2: CONFIGURATION CLASS
+// ========================================
+
+//! Enhanced crater prefab configuration with individual settings
+[BaseContainerProps()]
+class SCR_CraterPrefabConfig : Managed
+{
+    [Attribute("", UIWidgets.ResourcePickerThumbnail, "Crater prefab resource", "et")]
+    ResourceName m_sPrefabResource;
+    
+    [Attribute("1.0", UIWidgets.Slider, "Spawn weight (higher = more likely)", "0.1 10.0 0.1")]
+    float m_fSpawnWeight;
+    
+    [Attribute("2.0", UIWidgets.Slider, "Overlap prevention radius for this crater type", "0 15.0 0.1")]
+    float m_fOverlapRadius;
+    
+
+    
+    [Attribute("3.0", UIWidgets.Slider, "Tree avoidance radius (0 = disabled)", "0 10.0 0.1")]
+    float m_fTreeAvoidanceRadius;
+    
+    [Attribute("5.0", UIWidgets.Slider, "Vehicle avoidance radius (0 = disabled)", "0 15.0 0.1")]
+    float m_fVehicleAvoidanceRadius;
+    
+    [Attribute("8.0", UIWidgets.Slider, "Building avoidance radius (0 = disabled)", "0 20.0 0.1")]
+    float m_fBuildingAvoidanceRadius;
+    
+    [Attribute("2.0", UIWidgets.Slider, "Rock avoidance radius (0 = disabled)", "0 8.0 0.1")]
+    float m_fRockAvoidanceRadius;
+    
+    //[Attribute("0", UIWidgets.ComboBox, "Terrain type restriction", "", ParamEnumArray.FromEnum(ECraterTerrainType))]
+    ECraterTerrainType m_eTerrainType;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Enable for this crater type")]
+    bool m_bEnabled;
+   
+	
+	[Attribute("3.0", UIWidgets.Slider, "Ground contact radius for validation", "0.5 10.0 0.1")]
+    float m_fGroundContactRadius;    
+	
+    [Attribute("8", UIWidgets.Slider, "Ground sample points", "4 16 1")]
+    int m_iGroundSamplePoints;  
+    
+    [Attribute("0.7", UIWidgets.Slider, "Minimum ground contact ratio (0-1)", "0.1 1.0 0.1")]
+    float m_fMinGroundContactRatio;
+    
+    [Attribute("8", UIWidgets.Slider, "Object intersection sample points", "4 16 1")]
+    int m_iIntersectionSamplePoints;
+    
+    [Attribute("0.5", UIWidgets.Slider, "Height offset for intersection check", "0.1 2.0 0.1")]
+    float m_fIntersectionHeightOffset;
+}
+
+// ========================================
+// PART 3: COMPONENT CLASS DEFINITION
+// ========================================
+
+[ComponentEditorProps(category: "GameScripted/Explosion", description: "Enhanced crater spawner with multiple prefabs and validation")]
+class SCR_EnhancedCraterSpawnerComponentClass: ScriptComponentClass
+{
+}
+
+// ========================================
+// PART 4: MAIN COMPONENT CLASS
+// ========================================
+
+class SCR_EnhancedCraterSpawnerComponent: ScriptComponent
+{
+    // ========================================
+    // PART 4A: CONSTANTS
+    // ========================================
+    
+    private static const float TRACE_HEIGHT_OFFSET = 3.0;
+    private static const float TRACE_DEPTH = 2.0;
+    private static const float MAX_ROAD_DETECTION_DISTANCE = 4.0;
+    private static const int MAX_TRACE_ATTEMPTS = 3;
+    private static const float TERRAIN_PROXIMITY_THRESHOLD = 0.5;
+    private static const float TRACK_PROXIMITY_THRESHOLD = 0.1;
+    private static const float MINIMAL_MOVEMENT_THRESHOLD = 0.005;
+    private static const float CONTACT_TRACE_DISTANCE = 0.5;
+    private static const float INTERSECTION_TRACE_DISTANCE = 0.3;
+    
+    // ========================================
+    // PART 4B: ATTRIBUTES
+    // ========================================
+    
+    [Attribute("", UIWidgets.Auto, "Crater prefab configurations")]
+    private ref array<ref SCR_CraterPrefabConfig> m_aCraterConfigs;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Enable debug messages")]
+    private bool m_bDebug;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Align crater to terrain slope")]
+    private bool m_bAlignToTerrain;
+    
+    [Attribute("90.0", UIWidgets.Slider, "Maximum terrain slope (degrees)", "0 90 0.1")]
+    private float m_fMaxTerrainSlope;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Enforce strict validation (no spawn if blocked)")]
+    private bool m_bStrictValidation;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Block spawn on direct object hit (projectile collision detection)")]
+    private bool m_bBlockOnDirectHit;
+
+    // ========================================
+    // PART 4C: PRIVATE VARIABLES
+    // ========================================
+    
+    private bool m_bSpawned = false;
+    private float m_fStartTime;
+    private vector m_vLastPosition;
+    private int m_iContactCount = 0;
+    private ref array<IEntity> m_aNearbyEntities;
+    
+    // Cached references for performance
+    private BaseWorld m_World;
+    private ScriptCallQueue m_CallQueue;
+    
+    // Static pattern arrays for performance
+    private static ref array<string> s_AsphaltPatterns;
+    private static ref array<string> s_DirtPatterns;
+    private static ref array<string> s_RoadPatterns;
+
+    // ========================================
+    // PART 5: INITIALIZATION METHODS
+    // ========================================
+    
+    override void OnPostInit(IEntity owner)
+    {
+        super.OnPostInit(owner);
+        
+        if (!Replication.IsServer())
+            return;
+            
+        InitializeStaticPatterns();
+        InitializeComponent(owner);
+    }
+    
+	//------------------------------------------------------------------------------------------------
+	private void InitializeStaticPatterns()
+	{
+	    if (s_AsphaltPatterns)
+	        return; // Already initialized
+	        
+	    s_AsphaltPatterns = new array<string>();
+	    s_AsphaltPatterns.Insert("rg_road_asphalt");
+	    s_AsphaltPatterns.Insert("asphalt");
+	    s_AsphaltPatterns.Insert("paved");
+	    s_AsphaltPatterns.Insert("concrete");
+	    s_AsphaltPatterns.Insert("tarmac");
+	    s_AsphaltPatterns.Insert("highway");
+	    
+	    s_DirtPatterns = new array<string>();
+	    s_DirtPatterns.Insert("rg_road_dirt");
+	    s_DirtPatterns.Insert("rg_road_forest");
+	    s_DirtPatterns.Insert("rg_traildirt");
+	    s_DirtPatterns.Insert("rg_trailforest");
+	    s_DirtPatterns.Insert("rg_trailgravel");
+	    s_DirtPatterns.Insert("dirt");
+	    s_DirtPatterns.Insert("trail");
+	    s_DirtPatterns.Insert("gravel");
+	    s_DirtPatterns.Insert("forest");
+	    s_DirtPatterns.Insert("mud");
+	    s_DirtPatterns.Insert("sand");
+	    
+	    s_RoadPatterns = new array<string>();
+	    s_RoadPatterns.Insert("rg_road");
+	    s_RoadPatterns.Insert("rg_trail");
+	    s_RoadPatterns.Insert("road");
+	    s_RoadPatterns.Insert("street");
+	    s_RoadPatterns.Insert("highway");
+	    s_RoadPatterns.Insert("path");
+	    s_RoadPatterns.Insert("trail");
+	}
+    
+    //------------------------------------------------------------------------------------------------
+    private void InitializeComponent(IEntity owner)
+    {
+        // Cache frequently used references
+        m_World = GetGame().GetWorld();
+        m_CallQueue = GetGame().GetCallqueue();
+        
+        // Initialize arrays safely
+        if (!m_aNearbyEntities)
+            m_aNearbyEntities = new array<IEntity>();
+        else
+            m_aNearbyEntities.Clear();
+        
+        if (m_bDebug)
+        {
+            Print("=== ENHANCED CRATER SPAWNER START ===");
+            Print("Component initialized on: " + owner);
+            Print("Strict validation: " + m_bStrictValidation);
+            Print("Block on direct hit: " + m_bBlockOnDirectHit);
+            Print("Max terrain slope: " + m_fMaxTerrainSlope.ToString() + "°");
+            
+            ValidateConfigurations();
+        }
+        
+        // Delay world-dependent initialization
+        if (m_CallQueue)
+            m_CallQueue.CallLater(DelayedInit, 100, false, owner);
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    private void ValidateConfigurations()
+    {
+        if (m_aCraterConfigs)
+        {
+            Print("Crater configurations: " + m_aCraterConfigs.Count().ToString());
+            foreach (int i, SCR_CraterPrefabConfig config : m_aCraterConfigs)
+            {
+                if (config && config.m_bEnabled)
+                {
+                    Print("Config " + i.ToString() + ": " + config.m_sPrefabResource);
+                    Print("  Weight: " + config.m_fSpawnWeight.ToString());
+                    Print("  Avoidance - Trees: " + config.m_fTreeAvoidanceRadius.ToString() + "m, Buildings: " + config.m_fBuildingAvoidanceRadius.ToString() + "m");
+                }
+            }
+        }
+        else
+        {
+            Print("No crater configurations found!");
+        }
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    void DelayedInit(IEntity owner)
+    {
+        if (!owner || m_bSpawned)
+            return;
+        
+        if (m_World)
+        {
+            m_fStartTime = m_World.GetWorldTime();
+            m_vLastPosition = owner.GetOrigin();
+            
+            if (m_bDebug)
+            {
+                Print("Delayed init completed at time: " + m_fStartTime.ToString());
+                Print("Initial position: " + m_vLastPosition);
+            }
+            
+            if (m_CallQueue)
+                m_CallQueue.CallLater(TrackPosition, 10, true, owner);
+        }
+        else if (m_bDebug)
+        {
+            Print("World still not available in DelayedInit");
+        }
+    }
+
+    // ========================================
+    // PART 6: EVENT HANDLERS
+    // ========================================
+    
+    override void EOnInit(IEntity owner)
+    {
+        super.EOnInit(owner);
+        
+        if (!Replication.IsServer())
+            return;
+        
+        if (m_World)
+        {
+            float currentTime = m_World.GetWorldTime();
+            if (m_bDebug)
+                Print("EOnInit called at time: " + (currentTime - m_fStartTime).ToString() + "s after start");
+        }
+        
+        SetEventMask(owner, 
+            EntityEvent.INIT | 
+            EntityEvent.CONTACT | 
+            EntityEvent.FRAME |
+            EntityEvent.POSTSIMULATE
+        );
+        
+        if (m_bDebug)
+            Print("Contact events enabled for crater spawning");
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    override void EOnContact(IEntity owner, IEntity other, Contact contact)
+    {
+        super.EOnContact(owner, other, contact);
+        
+        if (m_bSpawned || !Replication.IsServer())
+            return;
+        
+        m_iContactCount++;
+        
+        if (m_bDebug)
+        {
+            float currentTime = 0;
+            if (m_World)
+                currentTime = m_World.GetWorldTime();
+            float timeFromStart = currentTime - m_fStartTime;
+            string otherName;
+            if (other)
+                otherName = other.ClassName();
+            else
+                otherName = "terrain/world";
+            
+            Print("=== CONTACT EVENT #" + m_iContactCount.ToString() + " ===");
+            Print("Time from start: " + timeFromStart.ToString() + "s");
+            Print("Contact with: " + otherName);
+            Print("Contact position: " + contact.Position);
+            Print("Contact impulse: " + contact.Impulse.ToString());
+            Print("Owner position: " + owner.GetOrigin());
+        }
+        
+        // Check for direct hit blocking if enabled
+        if (m_bBlockOnDirectHit && other)
+        {
+            ECraterTerrainType terrainType = DetectTerrainType(contact.Position);
+            SCR_CraterPrefabConfig selectedConfig = SelectCraterConfig(terrainType);
+            
+            if (selectedConfig && IsDirectHitBlocked(other, selectedConfig))
+            {
+                if (m_bDebug)
+                {
+                    Print("DIRECT HIT BLOCKED: Projectile hit protected object directly");
+                    Print("Hit object: " + other.ClassName());
+                    Print("Crater spawn cancelled due to direct hit blocking");
+                }
+                m_bSpawned = true;
+                return;
+            }
+        }
+        
+        if (m_bDebug)
+            Print("Calling SpawnEnhancedCrater...");
+        
+        SpawnEnhancedCrater(contact.Position);
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    override void EOnFrame(IEntity owner, float timeSlice)
+    {
+        super.EOnFrame(owner, timeSlice);
+        
+        if (m_bSpawned || !Replication.IsServer())
+            return;
+        
+        vector currentPos = owner.GetOrigin();
+        float movement = vector.Distance(currentPos, m_vLastPosition);
+        
+        if (movement < MINIMAL_MOVEMENT_THRESHOLD)
+        {
+            if (m_bDebug)
+            {
+                float currentTime = 0;
+                if (m_World)
+                    currentTime = m_World.GetWorldTime();
+                float timeFromStart = currentTime - m_fStartTime;
+                Print("FRAME: Minimal movement detected at " + timeFromStart + "s");
+            }
+            
+            float terrainY = SCR_TerrainHelper.GetTerrainY(currentPos);
+            float heightAboveTerrain = currentPos[1] - terrainY;
+            
+            if (heightAboveTerrain < TERRAIN_PROXIMITY_THRESHOLD)
+            {
+                if (m_bDebug)
+                    Print("FRAME IMPACT: Near terrain - spawning");
+                SpawnEnhancedCrater(currentPos);
+            }
+        }
+        
+        m_vLastPosition = currentPos;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    override void OnDelete(IEntity owner)
+    {
+        if (!m_bSpawned && Replication.IsServer())
+        {
+            if (m_World && m_bDebug)
+            {
+                float currentTime = m_World.GetWorldTime();
+                float timeFromStart = currentTime - m_fStartTime;
+                
+                Print("=== ONDELETE FALLBACK ===");
+                Print("Entity destroyed at: " + timeFromStart + "s");
+                Print("Contact events received: " + m_iContactCount);
+            }
+            
+            SpawnEnhancedCrater(owner.GetOrigin());
+        }
+        
+        // Clean up scheduled calls
+        if (m_CallQueue)
+        {
+            m_CallQueue.Remove(TrackPosition);
+            m_CallQueue.Remove(DelayedInit);
+        }
+        
+        super.OnDelete(owner);
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    void TrackPosition(IEntity owner)
+    {
+        if (m_bSpawned || !owner)
+        {
+            if (m_CallQueue)
+                m_CallQueue.Remove(TrackPosition);
+            return;
+        }
+        
+        if (!Replication.IsServer() || !m_World)
+        {
+            if (m_CallQueue)
+                m_CallQueue.Remove(TrackPosition);
+            return;
+        }
+        
+        vector currentPos = owner.GetOrigin();
+        float terrainY = SCR_TerrainHelper.GetTerrainY(currentPos);
+        float heightAboveTerrain = currentPos[1] - terrainY;
+        
+        if (heightAboveTerrain < TRACK_PROXIMITY_THRESHOLD)
+        {
+            if (m_bDebug)
+                Print("TRACK IMPACT: Very close to terrain - spawning");
+            SpawnEnhancedCrater(currentPos);
+        }
+    }
+
+    // ========================================
+    // PART 7: TERRAIN DETECTION METHODS
+    // ========================================
+	ECraterTerrainType DetectTerrainType(vector position)
+	{
+		if (!m_World)
+			return ECraterTerrainType.TERRAIN;
+		
+		if (m_bDebug)
+		{
+			Print("=== TERRAIN DETECTION START ===");
+			Print("Detection position: " + position);
+		}
+		
+		// Use decal detection - this works reliably
+		ECraterTerrainType decalResult = DetectTerrainByDecals(position);
+		if (decalResult != ECraterTerrainType.TERRAIN)
+		{
+			if (m_bDebug)
+				Print("Decal detection found: " + typename.EnumToString(ECraterTerrainType, decalResult));
+			return decalResult;
+		}
+		
+		if (m_bDebug)
+			Print("Final classification: NATURAL TERRAIN");
+		return ECraterTerrainType.TERRAIN;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	private ECraterTerrainType DetectTerrainByDecals(vector position)
+	{
+	    m_aNearbyEntities.Clear();
+	    m_World.QueryEntitiesBySphere(position, 4.0, QueryEntitiesCallback);
+	    
+	    int entityCount = m_aNearbyEntities.Count();
+	    if (m_bDebug)
+	        Print("Decal search found " + entityCount.ToString() + " entities");
+	    
+	    for (int i = 0; i < entityCount; i++)
+	    {
+	        IEntity entity = m_aNearbyEntities[i];
+	        if (!entity || entity.ClassName() != "DecalEntity")
+	            continue;
+	        
+	        string entityName = entity.GetName();
+	        
+	        if (m_bDebug)
+	            Print("Decal found: '" + entityName + "'");
+	        
+	        entityName.ToLower();
+	        
+	        // Quick check for asphalt first (most common)
+	        if (entityName.IndexOf("asphalt") != -1 || entityName.IndexOf("road") != -1)
+	        {
+	            if (m_bDebug)
+	                Print("  -> ASPHALT ROAD");
+	            return ECraterTerrainType.ROAD_ASPHALT;
+	        }
+	        
+	        // Then check resource path if name didn't match
+	        EntityPrefabData prefabData = entity.GetPrefabData();
+	        if (prefabData)
+	        {
+	            string resourcePath = prefabData.GetPrefabName();
+	            resourcePath.ToLower();
+	            
+	            if (resourcePath.IndexOf("decal_asphalt") != -1 ||
+	                resourcePath.IndexOf("asphalt_cracks") != -1 ||
+	                resourcePath.IndexOf("asphalt_crossroad") != -1)
+	            {
+	                if (m_bDebug)
+	                    Print("  -> ASPHALT ROAD (resource)");
+	                return ECraterTerrainType.ROAD_ASPHALT;
+	            }
+	            
+	            if (resourcePath.IndexOf("decal_dirt") != -1 ||
+	                resourcePath.IndexOf("dirt_road") != -1)
+	            {
+	                if (m_bDebug)
+	                    Print("  -> DIRT ROAD (resource)");
+	                return ECraterTerrainType.ROAD_DIRT;
+	            }
+	        }
+	    }
+	    
+	    return ECraterTerrainType.TERRAIN;
+	}
+    // ========================================
+    // PART 8: VALIDATION METHODS
+    // ========================================
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	
+	
+	
+	bool ValidateGroundContact(vector position, SCR_CraterPrefabConfig config)
+	{
+	    if (!config || !m_World)
+	        return true;
+	    
+	    float contactRadius = config.m_fGroundContactRadius;
+	    float minContactRatio = config.m_fMinGroundContactRatio;
+	    int samplePoints = config.m_iGroundSamplePoints;
+	    
+	    if (m_bDebug)
+	        Print("=== GROUND CONTACT VALIDATION ===");
+	    
+	    // Get crater's aligned transform
+	    vector alignedTransform[4];
+	    alignedTransform[0] = Vector(1, 0, 0);
+	    alignedTransform[1] = Vector(0, 1, 0);
+	    alignedTransform[2] = Vector(0, 0, 1);
+	    alignedTransform[3] = position;
+	    
+	    if (m_bAlignToTerrain)
+	        SCR_TerrainHelper.SnapAndOrientToTerrain(alignedTransform, m_World);
+	    
+	    vector craterUp = alignedTransform[1];
+	    vector craterRight = alignedTransform[0];
+	    vector craterForward = alignedTransform[2];
+	    
+	    // Reuse trace param and pre-allocate vector
+	    autoptr TraceParam trace = new TraceParam();
+	    trace.Flags = TraceFlags.WORLD;
+	    vector localOffset;
+	    
+	    int contactingPoints = 0;
+	    
+	    // Test center point
+	    trace.Start = position + craterUp;
+	    trace.End = position - craterUp;
+	    
+	    if (m_World.TraceMove(trace, null) < 1.0)
+	    {
+	        contactingPoints++;
+	        if (m_bDebug)
+	            Print("Center point: CONTACT");
+	    }
+	    
+	    // Pre-calculate angle step
+	    float angleStep = 360.0 / samplePoints * Math.DEG2RAD;
+	    
+	    // Test perimeter points
+	    for (int i = 0; i < samplePoints; i++)
+	    {
+	        float angle = i * angleStep;
+	        float cosAngle = Math.Cos(angle);
+	        float sinAngle = Math.Sin(angle);
+	        
+	        // Reuse localOffset vector
+	        localOffset[0] = cosAngle * contactRadius;
+	        localOffset[1] = 0;
+	        localOffset[2] = sinAngle * contactRadius;
+	        
+	        // Transform to world space using cached axis vectors
+	        vector worldSamplePos = position + 
+	            craterRight * localOffset[0] + 
+	            craterForward * localOffset[2];
+	        
+	        trace.Start = worldSamplePos + craterUp;
+	        trace.End = worldSamplePos - craterUp;
+	        
+	        if (m_World.TraceMove(trace, null) < 1.0)
+	            contactingPoints++;
+	    }
+	    
+	    // Calculate results
+	    int totalPoints = samplePoints + 1;
+	    bool validationPassed = (contactingPoints * 1.0 / totalPoints) >= minContactRatio;
+	    
+	    if (m_bDebug)
+	    {
+	        if (validationPassed)
+	            Print("VALIDATION: PASSED");
+	        else
+	            Print("VALIDATION: FAILED");
+	        
+	        Print("Contacting: " + contactingPoints.ToString() + "/" + totalPoints.ToString());
+	    }
+	    
+	    return validationPassed;
+	}
+	//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	bool TestContactAlongDirection(vector point, vector direction, string debugName)
+	{
+		if (!m_World)
+			return false;
+			
+		// Always trace straight down to check for actual ground contact
+		vector worldUp = Vector(0, 1, 0);
+		
+		autoptr TraceParam trace = new TraceParam();
+		trace.Start = point + worldUp * CONTACT_TRACE_DISTANCE;
+		trace.End = point - worldUp * (CONTACT_TRACE_DISTANCE * 3.0); // Trace further down
+		trace.Flags = TraceFlags.WORLD;
+		
+		float traceDist = m_World.TraceMove(trace, null);
+		
+		// Check if we hit something and it's close enough to the intended position
+		bool hasContact = false;
+		if (traceDist < 1.0)
+		{
+			vector hitPoint = trace.Start + (trace.End - trace.Start) * traceDist;
+			float distanceToIntended = Math.AbsFloat(hitPoint[1] - point[1]);
+			
+			// Only count as contact if ground is within reasonable distance
+			hasContact = (distanceToIntended <= CONTACT_TRACE_DISTANCE);
+		}
+		
+		if (m_bDebug)
+		{
+			Print("  " + debugName + " contact test:");
+			Print("    Test point: " + point);
+			Print("    Start: " + trace.Start);
+			Print("    End: " + trace.End);
+			Print("    Trace distance: " + traceDist.ToString());
+			
+			if (hasContact)
+			{
+				vector hitPoint = trace.Start + (trace.End - trace.Start) * traceDist;
+				Print("    Hit point: " + hitPoint);
+				Print("    Ground distance: " + (Math.AbsFloat(hitPoint[1] - point[1])).ToString() + "m");
+				Print("    Result: SOLID CONTACT");
+			}
+			else if (traceDist >= 1.0)
+				Print("    Result: NO CONTACT (no ground found)");
+			else
+				Print("    Result: NO CONTACT (ground too far away)");
+		}
+		
+		return hasContact;
+	}
+    
+    //------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	bool ValidateObjectIntersection(vector position, SCR_CraterPrefabConfig config)
+	{
+	    if (!config || !m_World)
+	        return true;
+	    
+	    float contactRadius = config.m_fGroundContactRadius;
+	    int samplePoints = config.m_iIntersectionSamplePoints;
+	    float heightOffset = config.m_fIntersectionHeightOffset;
+	    
+	    // Get crater's aligned transform
+	    vector alignedTransform[4];
+	    alignedTransform[0] = Vector(1, 0, 0);
+	    alignedTransform[1] = Vector(0, 1, 0);
+	    alignedTransform[2] = Vector(0, 0, 1);
+	    alignedTransform[3] = position;
+	    
+	    if (m_bAlignToTerrain)
+	        SCR_TerrainHelper.SnapAndOrientToTerrain(alignedTransform, m_World);
+	    
+	    vector craterUp = alignedTransform[1];
+	    vector craterRight = alignedTransform[0];
+	    vector craterForward = alignedTransform[2];
+	    
+	    if (m_bDebug)
+	        Print("=== OBJECT INTERSECTION CHECK ===");
+	    
+	    // Reuse trace param and pre-allocate vectors
+	    autoptr TraceParam trace = new TraceParam();
+	    trace.Flags = TraceFlags.WORLD | TraceFlags.ENTS;
+	    vector localOffset;
+	    vector testPos;
+	    
+	    // Test center
+	    testPos = position + craterUp * heightOffset;
+	    trace.Start = testPos + craterUp * INTERSECTION_TRACE_DISTANCE;
+	    trace.End = testPos - craterUp * INTERSECTION_TRACE_DISTANCE;
+	    
+	    if (m_World.TraceMove(trace, null) < 1.0 && trace.TraceEnt && IsBlockingEntity(trace.TraceEnt))
+	    {
+	        if (m_bDebug)
+	            Print("BLOCKED: Center intersection");
+	        return false;
+	    }
+	    
+	    // Pre-calculate angle step
+	    float angleStep = 360.0 / samplePoints * Math.DEG2RAD;
+	    
+	    // Test perimeter points
+	    for (int i = 0; i < samplePoints; i++)
+	    {
+	        float angle = i * angleStep;
+	        float cosAngle = Math.Cos(angle);
+	        float sinAngle = Math.Sin(angle);
+	        
+	        // Reuse localOffset vector
+	        localOffset[0] = cosAngle * contactRadius;
+	        localOffset[1] = 0;
+	        localOffset[2] = sinAngle * contactRadius;
+	        
+	        // Transform to world space using cached axis vectors
+	        vector worldSamplePos = position + 
+	            craterRight * localOffset[0] + 
+	            craterForward * localOffset[2];
+	        
+	        testPos = worldSamplePos + craterUp * heightOffset;
+	        trace.Start = testPos + craterUp * INTERSECTION_TRACE_DISTANCE;
+	        trace.End = testPos - craterUp * INTERSECTION_TRACE_DISTANCE;
+	        
+	        if (m_World.TraceMove(trace, null) < 1.0 && trace.TraceEnt && IsBlockingEntity(trace.TraceEnt))
+	        {
+	            if (m_bDebug)
+	                Print("BLOCKED: Point " + i.ToString());
+	            return false;
+	        }
+	    }
+	    
+	    return true;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	private bool IsCharacterEntity(IEntity entity)
+	{
+	    if (!entity)
+	        return false;
+	    
+	    // Check for character-specific components
+	    if (entity.FindComponent(CharacterControllerComponent))
+	        return true;
+	    if (entity.FindComponent(SCR_CharacterControllerComponent))
+	        return true;
+	    
+	    string className = entity.ClassName();
+	    
+	    // Check class name patterns
+	    if (className.IndexOf("Character") != -1 ||
+	        className.IndexOf("Player") != -1 ||
+	        className.IndexOf("SCR_ChimeraCharacter") != -1)
+	        return true;
+	    
+	    return false;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	private bool IsBlockingEntity(IEntity entity)
+	{
+	    if (!entity)
+	        return false;
+	    
+	    // Allow craters to spawn on/near characters
+	    if (IsCharacterEntity(entity))
+	        return false;
+	        
+	    string className = entity.ClassName();
+	    
+	    // Skip terrain
+	    if (className == "GenericTerrainEntity" || className.IndexOf("Terrain") != -1)
+	        return false;
+	    
+	    // Block solid objects
+	    return (className == "GenericEntity" || 
+	            className.IndexOf("Building") != -1 ||
+	            className.IndexOf("Structure") != -1 ||
+	            className.IndexOf("Vehicle") != -1 ||
+	            className.IndexOf("Tree") != -1 ||
+	            className.IndexOf("Rock") != -1 ||
+	            className.IndexOf("Wall") != -1 ||
+	            className.IndexOf("Fence") != -1);
+	}
+    // ========================================
+    // PART 9: SPAWN VALIDATION METHODS
+    // ========================================
+    
+    bool ValidateSpawnPosition(vector position, SCR_CraterPrefabConfig config)
+    {
+        if (m_bDebug)
+            Print("Validating position: " + position);
+        
+        // Validate position vector
+        if (position[0] == 0 && position[1] == 0 && position[2] == 0)
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Invalid position (zero vector)");
+            return false;
+        }
+        
+        // Check overlap prevention using config-specific radius
+        if (config && config.m_fOverlapRadius > 0 && IsNearExistingCrater(position, config.m_fOverlapRadius))
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Too close to existing crater (radius: " + config.m_fOverlapRadius.ToString() + "m)");
+            return false;
+        }
+        
+        // Check object avoidance with config-specific detection
+        if (IsNearProtectedObjects(position, config))
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Too close to protected objects");
+            return false;
+        }
+        
+        // Check terrain slope
+        if (m_fMaxTerrainSlope < 45.0 && !IsTerrainSlopeOk(position))
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Terrain too steep");
+            return false;
+        }
+        
+        // Check ground contact
+        if (!ValidateGroundContact(position, config))
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Failed ground contact validation");
+            return false;
+        }
+        
+        // Check object intersection
+        if (!ValidateObjectIntersection(position, config))
+        {
+            if (m_bDebug)
+                Print("BLOCKED: Object intersection detected");
+            return false;
+        }
+        
+        if (m_bDebug)
+            Print("Position validation PASSED");
+        return true;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsNearExistingCrater(vector position, float checkRadius)
+    {
+        if (!m_World)
+            return false;
+        
+        m_aNearbyEntities.Clear();
+        m_World.QueryEntitiesBySphere(position, checkRadius, QueryEntitiesCallback);
+        
+        foreach (IEntity entity : m_aNearbyEntities)
+        {
+            if (entity && entity.GetName().IndexOf("crater_") == 0)
+            {
+                if (m_bDebug)
+                    Print("Found existing crater within " + checkRadius.ToString() + "m: " + entity.GetName());
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsTerrainSlopeOk(vector position)
+    {
+        if (!m_World)
+            return true;
+        
+        const float sampleDistance = 0.5;
+        vector centerPos = position;
+        vector northPos = position + Vector(0, 0, sampleDistance);
+        vector eastPos = position + Vector(sampleDistance, 0, 0);
+        
+        float centerY = SCR_TerrainHelper.GetTerrainY(centerPos);
+        float northY = SCR_TerrainHelper.GetTerrainY(northPos);
+        float eastY = SCR_TerrainHelper.GetTerrainY(eastPos);
+        
+        vector northVec = Vector(0, northY - centerY, sampleDistance);
+        vector eastVec = Vector(sampleDistance, eastY - centerY, 0);
+        
+        vector normal = northVec * eastVec;
+        float length = normal.Length();
+        if (length > 0)
+            normal = normal / length;
+        else
+            return true;
+        
+        vector upVector = Vector(0, 1, 0);
+        float dotProduct = vector.Dot(normal, upVector);
+        float slopeAngle = Math.Acos(dotProduct) * Math.RAD2DEG;
+        
+        if (slopeAngle > m_fMaxTerrainSlope)
+        {
+            if (m_bDebug)
+                Print("Terrain too steep: " + slopeAngle + "° (max: " + m_fMaxTerrainSlope + "°)");
+            return false;
+        }
+        
+        return true;
+    }
+
+    // ========================================
+    // PART 10: OBJECT DETECTION METHODS
+    // ========================================
+    
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	bool IsNearProtectedObjects(vector position, SCR_CraterPrefabConfig config)
+	{
+	    if (!config || !m_World)
+	        return false;
+	        
+	    // Calculate maximum radius
+	    float maxRadius = Math.Max(Math.Max(config.m_fTreeAvoidanceRadius, config.m_fVehicleAvoidanceRadius),
+	                               Math.Max(config.m_fBuildingAvoidanceRadius, config.m_fRockAvoidanceRadius));
+	    
+	    if (maxRadius <= 0)
+	        return false;
+	    
+	    m_aNearbyEntities.Clear();
+	    m_World.QueryEntitiesBySphere(position, maxRadius, QueryEntitiesCallback);
+	    
+	    int entityCount = m_aNearbyEntities.Count();
+	    if (m_bDebug)
+	        Print("Found " + entityCount.ToString() + " entities");
+	    
+	    for (int i = 0; i < entityCount; i++)
+	    {
+	        IEntity entity = m_aNearbyEntities[i];
+	        if (!entity || IsEntityToIgnore(entity))
+	            continue;
+	        
+	        // Skip characters - allow craters near prone/standing players
+	        if (IsCharacterEntity(entity))
+	            continue;
+	        
+	        float distance = vector.Distance(position, entity.GetOrigin());
+	        
+	        // Check each type in order of likelihood
+	        if (config.m_fBuildingAvoidanceRadius > 0 && distance <= config.m_fBuildingAvoidanceRadius && IsBuildingEntity(entity))
+	        {
+	            if (m_bDebug)
+	                Print("BLOCKED: Building at " + distance.ToString() + "m");
+	            return true;
+	        }
+	        
+	        if (config.m_fVehicleAvoidanceRadius > 0 && distance <= config.m_fVehicleAvoidanceRadius && IsVehicleEntity(entity))
+	        {
+	            if (m_bDebug)
+	                Print("BLOCKED: Vehicle at " + distance.ToString() + "m");
+	            return true;
+	        }
+	        
+	        if (config.m_fTreeAvoidanceRadius > 0 && distance <= config.m_fTreeAvoidanceRadius && IsTreeEntity(entity))
+	        {
+	            if (m_bDebug)
+	                Print("BLOCKED: Tree at " + distance.ToString() + "m");
+	            return true;
+	        }
+	        
+	        if (config.m_fRockAvoidanceRadius > 0 && distance <= config.m_fRockAvoidanceRadius && IsRockEntity(entity))
+	        {
+	            if (m_bDebug)
+	                Print("BLOCKED: Rock at " + distance.ToString() + "m");
+	            return true;
+	        }
+	    }
+	    
+	    return false;
+	}
+    //------------------------------------------------------------------------------------------------
+    bool IsEntityToIgnore(IEntity entity)
+    {
+        if (!entity)
+            return true;
+            
+        string className = entity.ClassName();
+        string entityName = entity.GetName();
+        
+        // Ignore terrain
+        if (className == "GenericTerrainEntity" || 
+            className.IndexOf("Terrain") != -1)
+            return true;
+        
+        // Ignore existing craters
+        if (entityName.IndexOf("crater_") == 0)
+            return true;
+        
+        // Ignore the projectile itself
+        if (className.IndexOf("Projectile") != -1 || 
+            className.IndexOf("Grenade") != -1 ||
+            className.IndexOf("Shell") != -1)
+            return true;
+        
+        // Ignore very small/insignificant objects
+        if (className.IndexOf("Decal") != -1 || 
+            className.IndexOf("Particle") != -1 ||
+            className.IndexOf("Effect") != -1)
+            return true;
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsBuildingEntity(IEntity entity)
+    {
+        if (!entity)
+            return false;
+        
+        // Check for building-specific components first
+        if (entity.FindComponent(SCR_DestructibleBuildingComponent))
+            return true;
+        if (entity.FindComponent(SCR_CampaignBuildingComponent))
+            return true;
+        
+        string className = entity.ClassName();
+        string entityName = entity.GetName();
+        entityName.ToLower();
+        
+        // Check class name patterns
+        array<string> buildingPatterns = {
+            "Building", "House", "Structure", "Shed", "Barn", "Hangar",
+            "Tower", "Bunker", "Wall", "Fence", "Gate", "Barracks",
+            "Warehouse", "Factory", "Office", "Shop", "Store", "Church",
+            "Hospital", "School", "Bridge", "Checkpoint"
+        };
+        
+        foreach (string pattern : buildingPatterns)
+        {
+            if (className.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        // Check entity name patterns
+        array<string> namePatterns = {
+            "building", "house", "shed", "barn", "hangar", "bunker"
+        };
+        
+        foreach (string pattern : namePatterns)
+        {
+            if (entityName.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsVehicleEntity(IEntity entity)
+    {
+        if (!entity)
+            return false;
+        
+        string className = entity.ClassName();
+        
+        array<string> vehiclePatterns = {
+            "Vehicle", "Car", "Truck", "Tank", "APC", "IFV", 
+            "Helicopter", "Aircraft", "Plane", "Wheeled", "Tracked",
+            "M113", "BTR", "BMP", "Humvee", "UAZ", "Ural"
+        };
+        
+        foreach (string pattern : vehiclePatterns)
+        {
+            if (className.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsTreeEntity(IEntity entity)
+    {
+        if (!entity)
+            return false;
+        
+        string className = entity.ClassName();
+        string entityName = entity.GetName();
+        entityName.ToLower();
+        
+        array<string> treePatterns = {
+            "Tree", "Pine", "Oak", "Birch", "Spruce", "Fir",
+            "Bush", "Vegetation", "Plant", "Grass", "Flower"
+        };
+        
+        foreach (string pattern : treePatterns)
+        {
+            if (className.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        array<string> namePatterns = {
+            "tree", "pine", "oak", "birch", "bush", "plant"
+        };
+        
+        foreach (string pattern : namePatterns)
+        {
+            if (entityName.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsRockEntity(IEntity entity)
+    {
+        if (!entity)
+            return false;
+        
+        string className = entity.ClassName();
+        string entityName = entity.GetName();
+        entityName.ToLower();
+        
+        array<string> rockPatterns = {
+            "Rock", "Stone", "Boulder", "Granite", "Cliff", "Outcrop"
+        };
+        
+        foreach (string pattern : rockPatterns)
+        {
+            if (className.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        array<string> namePatterns = {
+            "rock", "stone", "boulder", "cliff"
+        };
+        
+        foreach (string pattern : namePatterns)
+        {
+            if (entityName.IndexOf(pattern) != -1)
+                return true;
+        }
+        
+        return false;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    bool IsDirectHitBlocked(IEntity hitEntity, SCR_CraterPrefabConfig config)
+    {
+        if (!hitEntity || !config)
+            return false;
+        
+        string className = hitEntity.ClassName();
+        string entityName = hitEntity.GetName();
+        entityName.ToLower();
+        
+        if (m_bDebug)
+        {
+            Print("DIRECT HIT CHECK:");
+            Print("  Hit entity class: " + className);
+            Print("  Hit entity name: " + entityName);
+        }
+        
+        // Skip terrain hits - we want craters on terrain
+        if (IsEntityToIgnore(hitEntity))
+        {
+            if (m_bDebug)
+                Print("  Result: Ignoring entity (terrain/effects/etc)");
+            return false;
+        }
+        
+        // Check if it's a protected object type
+        bool isProtected = false;
+        string objectType = "";
+        
+        if (config.m_fBuildingAvoidanceRadius > 0 && IsBuildingEntity(hitEntity))
+        {
+            isProtected = true;
+            objectType = "Building";
+        }
+        else if (config.m_fVehicleAvoidanceRadius > 0 && IsVehicleEntity(hitEntity))
+        {
+            isProtected = true;
+            objectType = "Vehicle";
+        }
+        else if (config.m_fTreeAvoidanceRadius > 0 && IsTreeEntity(hitEntity))
+        {
+            isProtected = true;
+            objectType = "Tree/Vegetation";
+        }
+        else if (config.m_fRockAvoidanceRadius > 0 && IsRockEntity(hitEntity))
+        {
+            isProtected = true;
+            objectType = "Rock";
+        }
+        
+        if (m_bDebug)
+        {
+            if (isProtected)
+                Print("  Result: BLOCKED - Direct hit on protected " + objectType);
+            else
+                Print("  Result: Allowed - Not a protected object type");
+        }
+        
+        return isProtected;
+    }
+
+    // ========================================
+    // PART 11: CRATER SPAWNING METHODS
+    // ========================================
+    
+    void SpawnEnhancedCrater(vector position)
+    {
+        if (m_bSpawned)
+        {
+            if (m_bDebug)
+                Print("Already spawned - ignoring duplicate call");
+            return;
+        }
+        
+        // Clean up tracking
+        if (m_CallQueue)
+            m_CallQueue.Remove(TrackPosition);
+        
+        float currentTime = 0;
+        float timeFromStart = 0;
+        
+        if (m_World)
+        {
+            currentTime = m_World.GetWorldTime();
+            timeFromStart = currentTime - m_fStartTime;
+        }
+        
+        if (m_bDebug)
+        {
+            Print("=== ENHANCED CRATER SPAWN START ===");
+            Print("SpawnEnhancedCrater called at: " + timeFromStart + "s");
+            Print("Spawn position: " + position);
+        }
+        
+        // Validate position first
+        if (position[0] == 0 && position[1] == 0 && position[2] == 0)
+        {
+            if (m_bDebug)
+                Print("ERROR: Invalid spawn position (zero vector)");
+            m_bSpawned = true;
+            return;
+        }
+        
+        // Detect terrain type at spawn position
+        ECraterTerrainType terrainType = DetectTerrainType(position);
+        
+        // Select crater prefab based on terrain type
+        SCR_CraterPrefabConfig selectedConfig = SelectCraterConfig(terrainType);
+        if (!selectedConfig)
+        {
+            if (m_bDebug)
+                Print("SPAWN BLOCKED: No crater prefab available for terrain type: " + typename.EnumToString(ECraterTerrainType, terrainType));
+            m_bSpawned = true;
+            return;
+        }
+        
+        if (m_bDebug)
+        {
+            Print("Selected crater: " + selectedConfig.m_sPrefabResource);
+            Print("Terrain type: " + typename.EnumToString(ECraterTerrainType, terrainType));
+            Print("Crater overlap radius: " + selectedConfig.m_fOverlapRadius.ToString() + "m");
+        }
+        
+        // Adjust to terrain
+        if (m_World)
+            position[1] = SCR_TerrainHelper.GetTerrainY(position);
+        
+        // Validate spawn position with config-specific settings
+        if (!ValidateSpawnPosition(position, selectedConfig))
+        {
+            if (m_bStrictValidation)
+            {
+                if (m_bDebug)
+                    Print("STRICT VALIDATION: Position blocked - crater spawn cancelled");
+                m_bSpawned = true;
+                return;
+            }
+            else if (m_bDebug)
+            {
+                Print("Position validation failed but spawning anyway (strict validation disabled)");
+            }
+        }
+        
+        // Actually spawn the crater
+        bool success = SpawnCraterAtPosition(position, selectedConfig);
+        
+        if (success)
+        {
+            m_bSpawned = true;
+            if (m_bDebug)
+                Print("=== CRATER SPAWN SUCCESSFUL ===");
+        }
+        else
+        {
+            m_bSpawned = true;
+            if (m_bDebug)
+                Print("=== CRATER SPAWN FAILED ===");
+        }
+    }
+    
+    //------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
+	bool SpawnCraterAtPosition(vector position, SCR_CraterPrefabConfig config)
+	{
+	    if (!config || config.m_sPrefabResource.IsEmpty())
+	    {
+	        if (m_bDebug)
+	            Print("ERROR: Invalid config or empty prefab resource");
+	        return false;
+	    }
+	    
+	    // Load and validate resource
+	    Resource resource = Resource.Load(config.m_sPrefabResource);
+	    if (!resource || !resource.IsValid())
+	    {
+	        if (m_bDebug)
+	            Print("ERROR: Failed to load resource: " + config.m_sPrefabResource);
+	        return false;
+	    }
+	    
+	    if (!m_World)
+	    {
+	        if (m_bDebug)
+	            Print("ERROR: World not available");
+	        return false;
+	    }
+	    
+	    EntitySpawnParams spawnParams = new EntitySpawnParams();
+	    spawnParams.TransformMode = ETransformMode.WORLD;
+	    spawnParams.Transform[0] = Vector(1, 0, 0);
+	    spawnParams.Transform[1] = Vector(0, 1, 0);
+	    spawnParams.Transform[2] = Vector(0, 0, 1);
+	    spawnParams.Transform[3] = position;
+	    
+	    // Align to terrain if enabled
+	    if (m_bAlignToTerrain)
+	    {
+	        vector mat[4];
+	        mat[0] = spawnParams.Transform[0];
+	        mat[1] = spawnParams.Transform[1];
+	        mat[2] = spawnParams.Transform[2];
+	        mat[3] = spawnParams.Transform[3];
+	        
+	        if (SCR_TerrainHelper.SnapAndOrientToTerrain(mat, m_World))
+	        {
+	            spawnParams.Transform[0] = mat[0];
+	            spawnParams.Transform[1] = mat[1];
+	            spawnParams.Transform[2] = mat[2];
+	            spawnParams.Transform[3] = mat[3];
+	            
+	            if (m_bDebug)
+	                Print("Aligned crater to terrain slope");
+	        }
+	    }
+	    
+	    // Spawn the crater
+	    IEntity spawnedEntity = GetGame().SpawnEntityPrefab(resource, null, spawnParams);
+	    
+	    if (spawnedEntity)
+	    {
+	        spawnedEntity.SetName("crater_" + spawnedEntity.GetName());
+	        
+	        // Validate children immediately instead of delayed
+	        ValidateCraterChildren(spawnedEntity);
+	        
+	        if (m_bDebug)
+	            Print("SUCCESS: Crater spawned at " + position);
+	        return true;
+	    }
+	    else
+	    {
+	        if (m_bDebug)
+	            Print("ERROR: SpawnEntityPrefab failed");
+	        return false;
+	    }
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void ValidateCraterChildren(IEntity crater)
+	{
+	    // Add null check first
+	    if (!crater)
+	    {
+	        if (m_bDebug)
+	            Print("Crater validation failed - entity null");
+	        return;
+	    }
+	    
+	    // Count and fix child entities
+	    IEntity child = crater.GetChildren();
+	    int childCount = 0;
+	    bool hasDecalIssue = false;
+	    
+	    while (child)
+	    {
+	        childCount++;
+	        
+	        // Check if child is positioned incorrectly (under the mesh)
+	        vector craterPos = crater.GetOrigin();
+	        vector childPos = child.GetOrigin();
+	        float heightDiff = childPos[1] - craterPos[1];
+	        
+	        if (heightDiff < -0.5)
+	        {
+	            hasDecalIssue = true;
+	            if (m_bDebug)
+	            {
+	                Print("Child positioning issue detected:");
+	                Print("  Child: " + child.GetName());
+	                Print("  Height diff: " + heightDiff.ToString());
+	            }
+	            
+	            // Fix child position
+	            vector correctedPos = childPos;
+	            correctedPos[1] = craterPos[1] + 0.01;
+	            child.SetOrigin(correctedPos);
+	            
+	            if (m_bDebug)
+	                Print("  Corrected child position");
+	        }
+	        
+	        child = child.GetSibling();
+	    }
+	    
+	    if (m_bDebug)
+	    {
+	        Print("Crater '" + crater.GetName() + "' has " + childCount.ToString() + " children");
+	        if (hasDecalIssue)
+	            Print("=== DECAL POSITIONING BUG DETECTED AND FIXED ===");
+	    }
+	}   
+	 //------------------------------------------------------------------------------------------------
+    SCR_CraterPrefabConfig SelectCraterConfig(ECraterTerrainType terrainType)
+    {
+        if (!m_aCraterConfigs || m_aCraterConfigs.Count() == 0)
+        {
+            if (m_bDebug)
+                Print("ERROR: No crater configs defined");
+            return null;
+        }
+        
+        array<ref SCR_CraterPrefabConfig> enabledConfigs = new array<ref SCR_CraterPrefabConfig>();
+        
+        foreach (SCR_CraterPrefabConfig config : m_aCraterConfigs)
+        {
+            if (config && config.m_bEnabled && !config.m_sPrefabResource.IsEmpty())
+            {
+                // Check terrain type compatibility
+                if (config.m_eTerrainType == ECraterTerrainType.ANY || config.m_eTerrainType == terrainType)
+                {
+                    enabledConfigs.Insert(config);
+                    if (m_bDebug)
+                        Print("Config accepted: " + config.m_sPrefabResource + " (terrain type: " + typename.EnumToString(ECraterTerrainType, config.m_eTerrainType) + ")");
+                }
+                else if (m_bDebug)
+                {
+                    Print("Config rejected: " + config.m_sPrefabResource + " (requires: " + typename.EnumToString(ECraterTerrainType, config.m_eTerrainType) + ", found: " + typename.EnumToString(ECraterTerrainType, terrainType) + ")");
+                }
+            }
+        }
+        
+        if (enabledConfigs.Count() == 0)
+        {
+            if (m_bDebug)
+                Print("STRICT BLOCKING: No crater configs available for terrain type: " + typename.EnumToString(ECraterTerrainType, terrainType));
+            return null;
+        }
+            
+        if (enabledConfigs.Count() == 1)
+            return enabledConfigs[0];
+        
+        // Weighted selection from compatible configs
+        float totalWeight = 0;
+        foreach (SCR_CraterPrefabConfig config : enabledConfigs)
+        {
+            totalWeight += config.m_fSpawnWeight;
+        }
+        
+        if (totalWeight <= 0)
+        {
+            int randomIndex = Math.RandomInt(0, enabledConfigs.Count());
+            return enabledConfigs[randomIndex];
+        }
+        
+        float randomValue = Math.RandomFloat(0, totalWeight);
+        float currentWeight = 0;
+        
+        foreach (SCR_CraterPrefabConfig config : enabledConfigs)
+        {
+            currentWeight += config.m_fSpawnWeight;
+            if (randomValue <= currentWeight)
+                return config;
+        }
+        
+        return enabledConfigs[enabledConfigs.Count() - 1];
+    }
+
+    // ========================================
+    // PART 12: UTILITY METHODS
+    // ========================================
+    
+    bool QueryEntitiesCallback(IEntity entity)
+    {
+        if (entity && m_aNearbyEntities)
+        {
+            // For terrain detection, include ALL entities for debugging
+            // We'll filter them during analysis instead of here
+            m_aNearbyEntities.Insert(entity);
+        }
+        return true;
+    }
+}
