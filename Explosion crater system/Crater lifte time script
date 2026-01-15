@@ -1,0 +1,126 @@
+[ComponentEditorProps(category: "GameScripted", description: "Crater lifetime manager for initial deletion")]
+class SCR_CraterLifetimeComponentClass : ScriptComponentClass
+{
+}
+
+//! Delete crater after given duration, with global tracking for first 5 craters
+class SCR_CraterLifetimeComponent : ScriptComponent
+{
+    [Attribute(defvalue: "10")]
+    protected float m_fLifeTime;
+    
+    [Attribute("1", UIWidgets.CheckBox, "Enable debug messages")]
+    protected bool m_bDebug;
+    
+    // Static tracking variables shared across all instances
+    static int s_iTotalCratersSpawned = 0;
+    static bool s_bDeletionScheduled = false;
+    static ref array<IEntity> s_aInitialCraters = {};
+    
+    protected bool m_bIsInitialCrater = false;
+    
+    //------------------------------------------------------------------------------------------------
+    // Static helper methods for external use
+    static void IncrementCraterCount()
+    {
+        s_iTotalCratersSpawned++;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    static int GetCraterCount()
+    {
+        return s_iTotalCratersSpawned;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    static bool ShouldTrackCrater()
+    {
+        return s_iTotalCratersSpawned <= 5;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    static void AddCraterToTrackingList(IEntity crater)
+    {
+        if (crater && s_aInitialCraters)
+            s_aInitialCraters.Insert(crater);
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    static bool ShouldScheduleDeletion()
+    {
+        return s_iTotalCratersSpawned == 5 && !s_bDeletionScheduled;
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    override void OnPostInit(IEntity owner)
+    {
+        super.OnPostInit(owner);
+        
+        if (!Replication.IsServer())
+            return;
+        
+        // Check if this is one of the first 5 craters
+        s_iTotalCratersSpawned++;
+        
+        if (m_bDebug)
+            Print("Crater #" + s_iTotalCratersSpawned.ToString() + " spawned: " + owner.GetName());
+        
+        if (s_iTotalCratersSpawned <= 5)
+        {
+            m_bIsInitialCrater = true;
+            s_aInitialCraters.Insert(owner);
+            
+            if (m_bDebug)
+                Print("Added to initial crater list (" + s_aInitialCraters.Count().ToString() + "/5)");
+            
+            // If this is the 5th crater, schedule deletion for all initial craters
+            if (s_iTotalCratersSpawned == 5 && !s_bDeletionScheduled)
+            {
+                s_bDeletionScheduled = true;
+                GetGame().GetCallqueue().CallLater(DeleteInitialCraters, m_fLifeTime * 1000, false);
+                
+                if (m_bDebug)
+                    Print("Scheduled deletion of 5 initial craters in " + m_fLifeTime.ToString() + " seconds");
+            }
+        }
+        else
+        {
+            if (m_bDebug)
+                Print("This crater will not be deleted (not in first 5)");
+        }
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    static void DeleteInitialCraters()
+    {
+        if (!s_aInitialCraters)
+            return;
+        
+        Print("=== DELETING INITIAL CRATERS ===");
+        
+        int deletedCount = 0;
+        foreach (IEntity crater : s_aInitialCraters)
+        {
+            if (crater)
+            {
+                Print("Deleting initial crater: " + crater.GetName());
+                delete crater;
+                deletedCount++;
+            }
+        }
+        
+        Print("Deleted " + deletedCount.ToString() + " initial craters");
+        s_aInitialCraters.Clear();
+        s_bDeletionScheduled = true; // Mark as completed
+    }
+    
+    //------------------------------------------------------------------------------------------------
+    // Reset static variables (useful for testing)
+    static void ResetTracking()
+    {
+        s_iTotalCratersSpawned = 0;
+        s_bDeletionScheduled = false;
+        s_aInitialCraters.Clear();
+        Print("Crater tracking reset");
+    }
+}
