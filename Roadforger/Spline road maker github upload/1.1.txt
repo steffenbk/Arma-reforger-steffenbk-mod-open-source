@@ -1,0 +1,78 @@
+//------------------------------------------------------------------------------------------------
+//! Toggle Construction Mode Action
+//! Switches between normal road configs and construction (upgraded) road configs
+//! 
+//! Usage:
+//! 1. Add to vehicle's ActionsManagerComponent
+//! 2. Requires SCR_VehicleSplineTrackSpawnerComponent on the vehicle
+//! 3. Configure construction road configs in the track spawner component
+//!
+//! Example use case:
+//! - Normal mode: Spawns dirt tracks
+//! - Construction mode: Spawns paved/gravel roads over the same terrain
+//------------------------------------------------------------------------------------------------
+class SCR_ToggleConstructionModeAction : SCR_VehicleActionBase
+{
+	protected SCR_VehicleSplineTrackSpawnerComponent m_TrackSpawner;
+	
+	//------------------------------------------------------------------------------------------------
+	override void Init(IEntity pOwnerEntity, GenericComponent pManagerComponent)
+	{
+		super.Init(pOwnerEntity, pManagerComponent);
+		
+		if (pOwnerEntity)
+			m_TrackSpawner = SCR_VehicleSplineTrackSpawnerComponent.Cast(pOwnerEntity.FindComponent(SCR_VehicleSplineTrackSpawnerComponent));
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override bool HasLocalEffectOnlyScript()
+	{
+		return false;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override bool CanBroadcastScript()
+	{
+		return true;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override void PerformAction(IEntity pOwnerEntity, IEntity pUserEntity)
+	{
+		if (!m_TrackSpawner)
+			return;
+		
+		bool currentState = m_TrackSpawner.IsConstructionMode();
+		m_TrackSpawner.SetConstructionMode(!currentState);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override bool CanBeShownScript(IEntity user)
+	{
+		return m_TrackSpawner && super.CanBeShownScript(user);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override bool CanBePerformedScript(IEntity user)
+	{
+		return m_TrackSpawner && super.CanBePerformedScript(user);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override bool GetState()
+	{
+		if (!m_TrackSpawner)
+			return false;
+		
+		return m_TrackSpawner.IsConstructionMode();
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override void SetState(bool enable)
+	{
+		if (!m_TrackSpawner)
+			return;
+		
+		m_TrackSpawner.SetConstructionMode(enable);
+	}
+}

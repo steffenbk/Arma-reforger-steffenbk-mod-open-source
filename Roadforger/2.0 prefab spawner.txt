@@ -1,0 +1,763 @@
+[Attribute("1", UIWidgets.CheckBox, "Enable distance-based spawning")]
+	private bool m_bDistanceBasedSpawning;
+	
+	[Attribute("150", UIWidgets.Slider, "Max tracks per vehicle", "50 500 10")]
+	private int m_iMaxTracksPerVehicle;
+	
+	[Attribute("1000", UIWidgets.Slider, "Global max tracks (all vehicles)", "200 5000 100")]
+	private static int s_iGlobalMaxTracks;[ComponentEditorProps(category: "GameScripted/Vehicle", description: "Spawns dirt effects around vehicle wheels - Multiplayer optimized")]
+class SCR_VehicleWheelEffectSpawnerComponentClass : ScriptComponentClass
+{
+}
+
+//! Helper class to track entity age for cleanup sorting
+class TrackAge
+{
+	IEntity m_Track;
+	float m_fAge;
+}
+
+//! Enhanced prefab configuration with validation settings
+[BaseContainerProps()]
+class SCR_DirtPrefabConfig : Managed
+{
+	[Attribute("", UIWidgets.ResourcePickerThumbnail, "Dirt effect prefab", "et")]
+	ResourceName m_sPrefabResource;
+	
+	[Attribute("0 0 0.3", UIWidgets.Coords, "Spawn offset from wheel (X=right, Y=up, Z=forward)", "inf inf inf purpose=coords space=entity")]
+	vector m_vOffset;
+	
+	[Attribute("0", UIWidgets.SpinBox, "Target wheel index (0=FL, 1=FR, 2=RL, 3=RR)", "0 20 1")]
+	int m_iWheelIndex;
+	
+	[Attribute("0.5", UIWidgets.Slider, "Ground contact radius for validation", "0.2 2.0 0.1")]
+	float m_fGroundContactRadius;
+	
+	[Attribute("4", UIWidgets.Slider, "Ground sample points", "3 12 1")]
+	int m_iGroundSamplePoints;
+	
+	[Attribute("0.6", UIWidgets.Slider, "Minimum ground contact ratio (0-1)", "0.1 1.0 0.1")]
+	float m_fMinGroundContactRatio;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Enable for this effect type")]
+	bool m_bEnabled;
+}
+
+class SCR_VehicleWheelEffectSpawnerComponent : ScriptComponent
+{
+	[Attribute("", UIWidgets.Auto, "Dirt effect configurations")]
+	private ref array<ref SCR_DirtPrefabConfig> m_aDirtConfigs;
+	
+	[Attribute("0", UIWidgets.CheckBox, "Enable debug messages")]
+	private bool m_bDebug;
+	
+	[Attribute("5.0", UIWidgets.Slider, "Minimum speed to spawn effects (km/h)", "0 50 0.5")]
+	private float m_fMinSpeedForEffects;
+	
+	[Attribute("0.4", UIWidgets.Slider, "Minimum slip to spawn effects", "0 1.0 0.05")]
+	private float m_fMinSlipForEffects;
+	
+	[Attribute("0.08", UIWidgets.Slider, "Effect spawn interval (seconds)", "0.05 5.0 0.01")]
+	private float m_fSpawnInterval;
+	
+	[Attribute("0.2", UIWidgets.Slider, "Collision check interval (seconds)", "0.05 1.0 0.05")]
+	private float m_fCollisionCheckInterval;
+	
+	[Attribute("10.0", UIWidgets.Slider, "Effect cleanup delay (seconds)", "1.0 30.0 0.5")]
+	private float m_fCleanupDelay;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Enable automatic cleanup")]
+	private bool m_bEnableCleanup;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Enable limit-based cleanup (delete oldest when limit reached)")]
+	private bool m_bEnableLimitBasedCleanup;
+	
+	[Attribute("500", UIWidgets.Slider, "Max tracks before cleanup triggers", "50 2000 50")]
+	private int m_iCleanupTriggerLimit;
+	
+	[Attribute("0", UIWidgets.CheckBox, "Only spawn on dirt surfaces")]
+	private bool m_bDirtSurfacesOnly;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Align effects to terrain slope")]
+	private bool m_bAlignToTerrain;
+	
+	[Attribute("0", UIWidgets.CheckBox, "Enable ground contact validation")]
+	private bool m_bValidateGroundContact;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Delete tracks when wheels touch them")]
+	private bool m_bDeleteOnWheelContact;
+	
+	[Attribute("0.5", UIWidgets.Slider, "Wheel contact detection radius", "0.1 3.0 0.1")]
+	private float m_fWheelContactRadius;
+	
+	[Attribute("0.5", UIWidgets.Slider, "New track protection time (seconds)", "0.1 10.0 0.1")]
+	private float m_fTrackProtectionTime;
+	
+	[Attribute("0.0", UIWidgets.Slider, "Wheel deletion delay (seconds after contact)", "0.0 2.0 0.1")]
+	private float m_fWheelDeletionDelay;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Prevent overlapping track spawns")]
+	private bool m_bPreventOverlappingSpawns;
+	
+	[Attribute("0.8", UIWidgets.Slider, "Minimum distance between tracks", "0.1 3.0 0.1")]
+	private float m_fMinTrackDistance;
+	
+	[Attribute("80", UIWidgets.Slider, "Maximum spawn distance from players (meters)", "20 200 5")]
+	private float m_fMaxSpawnDistance;
+	
+	[Attribute("1", UIWidgets.CheckBox, "Enable distance-based spawning")]
+	private bool m_bDistanceBasedSpawning;
+	
+	protected Vehicle m_Vehicle;
+	protected VehicleWheeledSimulation m_Simulation;
+	protected float m_fLastSpawnTime;
+	protected float m_fLastCollisionCheckTime;
+	protected ref array<IEntity> m_aSpawnedEffects;
+	protected ref array<vector> m_aPreviousWheelPos;
+	protected ref array<IEntity> m_aNearbyEntities;
+	protected ref map<IEntity, float> m_mTrackSpawnTimes;
+	protected BaseWorld m_World;
+	
+	// Global tracking for all vehicles
+	private static int s_iGlobalMaxTracks = 1000;
+	private static int s_iTotalTracksSpawned = 0;
+	private static float s_fLastGlobalCleanupTime = 0;
+	private static const float GLOBAL_CLEANUP_INTERVAL = 30000; // 30 seconds
+	
+	//------------------------------------------------------------------------------------------------
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		
+		if (!Replication.IsServer())
+			return;
+			
+		m_Vehicle = Vehicle.Cast(owner);
+		if (!m_Vehicle)
+		{
+			Print("VehicleWheelEffectSpawner: Must be attached to Vehicle!", LogLevel.ERROR);
+			return;
+		}
+		
+		m_Simulation = VehicleWheeledSimulation.Cast(m_Vehicle.FindComponent(VehicleWheeledSimulation));
+		if (!m_Simulation)
+		{
+			Print("VehicleWheelEffectSpawner: Missing VehicleWheeledSimulation!", LogLevel.ERROR);
+			return;
+		}
+		
+		m_World = GetGame().GetWorld();
+		m_aSpawnedEffects = {};
+		m_aNearbyEntities = {};
+		m_mTrackSpawnTimes = new map<IEntity, float>();
+		m_fLastSpawnTime = 0;
+		m_fLastCollisionCheckTime = 0;
+		
+		SetEventMask(owner, EntityEvent.FRAME);
+		
+		if (m_bDebug)
+		{
+			Print("VehicleWheelEffectSpawner initialized (Multiplayer optimized)", LogLevel.NORMAL);
+			Print("Vehicle: " + m_Vehicle.GetName(), LogLevel.NORMAL);
+			Print("Max tracks per vehicle: " + m_iMaxTracksPerVehicle.ToString(), LogLevel.NORMAL);
+			Print("Global max tracks: " + s_iGlobalMaxTracks.ToString(), LogLevel.NORMAL);
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override void EOnFrame(IEntity owner, float timeSlice)
+	{
+		if (!m_Vehicle || !m_Simulation)
+			return;
+			
+		float currentTime = GetGame().GetWorld().GetWorldTime();
+		
+		// Global cleanup check (all vehicles share this)
+		if (currentTime - s_fLastGlobalCleanupTime > GLOBAL_CLEANUP_INTERVAL)
+		{
+			PerformGlobalCleanup();
+			s_fLastGlobalCleanupTime = currentTime;
+		}
+		
+		// Spawn interval check
+		if (currentTime - m_fLastSpawnTime < m_fSpawnInterval * 1000)
+			return;
+			
+		float speed = m_Simulation.GetSpeedKmh();
+		if (speed < m_fMinSpeedForEffects)
+			return;
+			
+		if (m_bDirtSurfacesOnly)
+		{
+			bool foundDirtSurface = false;
+			int wheelCount = m_Simulation.WheelCount();
+			
+			for (int i = 0; i < wheelCount; i++)
+			{
+				if (m_Simulation.WheelHasContact(i))
+				{
+					vector wheelPos = m_Simulation.WheelGetContactPosition(i);
+					if (IsDirtSurface(wheelPos))
+					{
+						foundDirtSurface = true;
+						break;
+					}
+				}
+			}
+			
+			if (!foundDirtSurface)
+				return;
+		}
+		
+		m_fLastSpawnTime = currentTime;
+		ProcessWheelEffects();
+		
+		// Collision check less frequently than spawn checks
+		if (m_bDeleteOnWheelContact && currentTime - m_fLastCollisionCheckTime > m_fCollisionCheckInterval * 1000)
+		{
+			CheckWheelTrackCollisions();
+			m_fLastCollisionCheckTime = currentTime;
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void PerformGlobalCleanup()
+	{
+		if (m_bDebug)
+			Print("Performing global cleanup check. Current global tracks: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+		
+		// If we're over 80% of global limit, force cleanup of old tracks
+		if (s_iTotalTracksSpawned > s_iGlobalMaxTracks * 0.8)
+		{
+			CleanupOldestTracks();
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void CleanupOldestTracks()
+	{
+		if (!m_aSpawnedEffects || m_aSpawnedEffects.Count() == 0)
+			return;
+		
+		float currentTime = GetGame().GetWorld().GetWorldTime();
+		int cleanedCount = 0;
+		int targetCleanup = Math.Max(1, m_aSpawnedEffects.Count() / 4); // Clean oldest 25%, minimum 1
+		
+		// Build array of tracks with their ages
+		array<ref TrackAge> trackAges = {};
+		
+		foreach (IEntity track : m_aSpawnedEffects)
+		{
+			if (track && m_mTrackSpawnTimes.Contains(track))
+			{
+				float spawnTime = m_mTrackSpawnTimes.Get(track);
+				float age = currentTime - spawnTime;
+				
+				TrackAge ta = new TrackAge();
+				ta.m_Track = track;
+				ta.m_fAge = age;
+				trackAges.Insert(ta);
+			}
+		}
+		
+		// Sort by age (oldest first) - simple bubble sort for small arrays
+		for (int i = 0; i < trackAges.Count() - 1; i++)
+		{
+			for (int j = 0; j < trackAges.Count() - i - 1; j++)
+			{
+				if (trackAges[j].m_fAge < trackAges[j + 1].m_fAge)
+				{
+					TrackAge temp = trackAges[j];
+					trackAges[j] = trackAges[j + 1];
+					trackAges[j + 1] = temp;
+				}
+			}
+		}
+		
+		// Delete oldest tracks
+		for (int i = 0; i < targetCleanup && i < trackAges.Count(); i++)
+		{
+			IEntity oldTrack = trackAges[i].m_Track;
+			if (oldTrack)
+			{
+				// Remove from tracking
+				int index = m_aSpawnedEffects.Find(oldTrack);
+				if (index != -1)
+					m_aSpawnedEffects.Remove(index);
+				
+				if (m_mTrackSpawnTimes.Contains(oldTrack))
+					m_mTrackSpawnTimes.Remove(oldTrack);
+				
+				SCR_EntityHelper.DeleteEntityAndChildren(oldTrack);
+				s_iTotalTracksSpawned--;
+				cleanedCount++;
+			}
+		}
+		
+		if (m_bDebug)
+			Print("Cleaned up " + cleanedCount.ToString() + " oldest tracks (by age)", LogLevel.NORMAL);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	bool IsDirtSurface(vector position)
+	{
+		if (!m_World)
+			return false;
+			
+		vector rayStart = position + Vector(0, 0.1, 0);
+		vector rayEnd = position + Vector(0, -0.5, 0);
+		
+		TraceParam param = new TraceParam();
+		param.Start = rayStart;
+		param.End = rayEnd;
+		param.LayerMask = EPhysicsLayerDefs.Terrain;
+		param.Flags = TraceFlags.WORLD;
+		
+		float traceResult = m_World.TraceMove(param, null);
+		return (traceResult < 1.0);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void ProcessWheelEffects()
+	{
+		if (!m_aDirtConfigs || m_aDirtConfigs.Count() == 0)
+			return;
+		
+		// Check limit-based cleanup if enabled
+		if (m_bEnableLimitBasedCleanup && m_aSpawnedEffects.Count() >= m_iCleanupTriggerLimit)
+		{
+			if (m_bDebug)
+				Print("Cleanup trigger limit reached (" + m_iCleanupTriggerLimit.ToString() + "), cleaning oldest tracks", LogLevel.NORMAL);
+			
+			CleanupOldestTracks();
+		}
+			
+		int wheelCount = m_Simulation.WheelCount();
+		
+		foreach (SCR_DirtPrefabConfig config : m_aDirtConfigs)
+		{
+			if (!config || config.m_sPrefabResource.IsEmpty() || !config.m_bEnabled)
+				continue;
+				
+			int targetWheel = config.m_iWheelIndex;
+			
+			if (targetWheel < 0 || targetWheel >= wheelCount)
+				continue;
+			
+			if (!m_Simulation.WheelHasContact(targetWheel))
+				continue;
+			
+			float longSlip = m_Simulation.WheelGetLongitudinalSlip(targetWheel);
+			float latSlip = m_Simulation.WheelGetLateralSlip(targetWheel);
+			float totalSlip = Math.AbsFloat(longSlip) + Math.AbsFloat(latSlip);
+			
+			if (totalSlip >= m_fMinSlipForEffects)
+			{
+				vector wheelPos = m_Simulation.WheelGetContactPosition(targetWheel);
+				SpawnSpecificWheelEffect(wheelPos, targetWheel, config);
+			}
+		}
+		
+		if (m_bDebug)
+			Print("After spawn cycle - Vehicle tracks: " + m_aSpawnedEffects.Count().ToString() + ", Global: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void CheckWheelTrackCollisions()
+	{
+		int wheelCount = m_Simulation.WheelCount();
+		
+		for (int i = 0; i < wheelCount; i++)
+		{
+			if (m_Simulation.WheelHasContact(i))
+			{
+				vector wheelPos = m_Simulation.WheelGetContactPosition(i);
+				DeleteTracksNearWheel(wheelPos);
+			}
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void DeleteTracksNearWheel(vector wheelPosition)
+	{
+		if (!m_aNearbyEntities || !m_World)
+			return;
+		
+		float currentTime = GetGame().GetWorld().GetWorldTime();
+		
+		m_aNearbyEntities.Clear();
+		m_World.QueryEntitiesBySphere(wheelPosition, m_fWheelContactRadius, QueryCallback);
+		
+		int deletedCount = 0;
+		foreach (IEntity entity : m_aNearbyEntities)
+		{
+			if (entity && entity.GetName().IndexOf("wheel_dirt_effect_") == 0)
+			{
+				if (m_mTrackSpawnTimes.Contains(entity))
+				{
+					float spawnTime = m_mTrackSpawnTimes.Get(entity);
+					float age = (currentTime - spawnTime) / 1000.0;
+					
+					if (age < m_fTrackProtectionTime)
+						continue;
+				}
+				
+				// Apply deletion delay if configured
+				if (m_fWheelDeletionDelay > 0)
+				{
+					GetGame().GetCallqueue().CallLater(DelayedWheelDeletion, m_fWheelDeletionDelay * 1000, false, entity);
+					deletedCount++;
+				}
+				else
+				{
+					// Immediate deletion
+					if (m_aSpawnedEffects)
+					{
+						int index = m_aSpawnedEffects.Find(entity);
+						if (index != -1)
+							m_aSpawnedEffects.Remove(index);
+					}
+					
+					if (m_mTrackSpawnTimes.Contains(entity))
+						m_mTrackSpawnTimes.Remove(entity);
+					
+					SCR_EntityHelper.DeleteEntityAndChildren(entity);
+					s_iTotalTracksSpawned--;
+					deletedCount++;
+					
+					if (m_bDebug)
+						Print("Decremented global counter on wheel deletion: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+				}
+			}
+		}
+		
+		// Safety check
+		if (s_iTotalTracksSpawned < 0)
+		{
+			Print("WARNING: Global counter negative after wheel deletion, resetting", LogLevel.ERROR);
+			s_iTotalTracksSpawned = 0;
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void DelayedWheelDeletion(IEntity entity)
+	{
+		if (!entity)
+			return;
+		
+		if (m_aSpawnedEffects)
+		{
+			int index = m_aSpawnedEffects.Find(entity);
+			if (index != -1)
+				m_aSpawnedEffects.Remove(index);
+		}
+		
+		if (m_mTrackSpawnTimes.Contains(entity))
+			m_mTrackSpawnTimes.Remove(entity);
+		
+		SCR_EntityHelper.DeleteEntityAndChildren(entity);
+		s_iTotalTracksSpawned--;
+		
+		if (m_bDebug)
+			Print("Delayed wheel deletion executed. Global: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+		
+		if (s_iTotalTracksSpawned < 0)
+		{
+			Print("WARNING: Global counter negative after delayed deletion", LogLevel.ERROR);
+			s_iTotalTracksSpawned = 0;
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void SpawnSpecificWheelEffect(vector wheelPos, int wheelIndex, SCR_DirtPrefabConfig config)
+	{
+		vector vehicleTransform[4];
+		m_Vehicle.GetWorldTransform(vehicleTransform);
+		
+		vector spawnPos = CalculateSpawnPosition(wheelPos, vehicleTransform, config.m_vOffset);
+		
+		if (!ValidateSpawnPosition(spawnPos, config))
+			return;
+		
+		SpawnEffect(spawnPos, wheelIndex, config);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	bool ValidateSpawnPosition(vector position, SCR_DirtPrefabConfig config)
+	{
+		if (m_bPreventOverlappingSpawns && IsTooCloseToExistingTrack(position))
+			return false;
+		
+		if (m_bValidateGroundContact && !ValidateGroundContact(position, config))
+			return false;
+		
+		return true;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	bool IsTooCloseToExistingTrack(vector position)
+	{
+		if (!m_aNearbyEntities || !m_World)
+			return false;
+		
+		m_aNearbyEntities.Clear();
+		m_World.QueryEntitiesBySphere(position, m_fMinTrackDistance, QueryCallback);
+		
+		foreach (IEntity entity : m_aNearbyEntities)
+		{
+			if (entity && entity.GetName().IndexOf("wheel_dirt_effect_") == 0)
+				return true;
+		}
+		
+		return false;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	bool ValidateGroundContact(vector position, SCR_DirtPrefabConfig config)
+	{
+		if (!config || !m_World)
+			return true;
+		
+		float contactRadius = config.m_fGroundContactRadius;
+		float minContactRatio = config.m_fMinGroundContactRatio;
+		int samplePoints = config.m_iGroundSamplePoints;
+		
+		vector alignedTransform[4];
+		alignedTransform[0] = Vector(1, 0, 0);
+		alignedTransform[1] = Vector(0, 1, 0);
+		alignedTransform[2] = Vector(0, 0, 1);
+		alignedTransform[3] = position;
+		
+		if (m_bAlignToTerrain)
+			SCR_TerrainHelper.SnapAndOrientToTerrain(alignedTransform, m_World);
+		
+		int contactingPoints = 0;
+		vector effectUp = alignedTransform[1];
+		
+		autoptr TraceParam centerTrace = new TraceParam();
+		centerTrace.Start = position + effectUp * 0.5;
+		centerTrace.End = position - effectUp * 0.5;
+		centerTrace.Flags = TraceFlags.WORLD;
+		
+		if (m_World.TraceMove(centerTrace, null) < 1.0)
+			contactingPoints++;
+		
+		for (int i = 0; i < samplePoints; i++)
+		{
+			float angle = (i * 360.0 / samplePoints) * Math.DEG2RAD;
+			
+			vector localOffset = Vector(
+				Math.Cos(angle) * contactRadius,
+				0,
+				Math.Sin(angle) * contactRadius
+			);
+			
+			vector worldSamplePos = position + 
+				alignedTransform[0] * localOffset[0] + 
+				alignedTransform[2] * localOffset[2];
+			
+			autoptr TraceParam trace = new TraceParam();
+			trace.Start = worldSamplePos + effectUp * 0.5;
+			trace.End = worldSamplePos - effectUp * 0.5;
+			trace.Flags = TraceFlags.WORLD;
+			
+			if (m_World.TraceMove(trace, null) < 1.0)
+				contactingPoints++;
+		}
+		
+		int totalPoints = samplePoints + 1;
+		float actualContactRatio = contactingPoints / totalPoints;
+		return (actualContactRatio >= minContactRatio);
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	vector CalculateSpawnPosition(vector wheelPos, vector vehicleTransform[4], vector offset)
+	{
+		vector forward = vehicleTransform[2];
+		vector right = vehicleTransform[0];
+		vector up = vehicleTransform[1];
+		
+		vector worldOffset = right * offset[0] + up * offset[1] + forward * offset[2];
+		return wheelPos + worldOffset;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void SpawnEffect(vector position, int wheelIndex, SCR_DirtPrefabConfig config)
+	{
+		vector vehicleTransform[4];
+		m_Vehicle.GetWorldTransform(vehicleTransform);
+		
+		vector wheelTransform[4];
+		CalculateWheelRotation(wheelIndex, vehicleTransform, wheelTransform);
+		
+		EntitySpawnParams spawnParams = new EntitySpawnParams();
+		spawnParams.TransformMode = ETransformMode.WORLD;
+		spawnParams.Transform[0] = wheelTransform[0];
+		spawnParams.Transform[1] = wheelTransform[1];
+		spawnParams.Transform[2] = wheelTransform[2];
+		spawnParams.Transform[3] = position;
+		
+		if (m_bAlignToTerrain && m_World)
+		{
+			vector terrainPos = position;
+			terrainPos[1] = SCR_TerrainHelper.GetTerrainY(position);
+			
+			const float sampleDist = 0.5;
+			vector northPos = terrainPos + Vector(0, 0, sampleDist);
+			vector eastPos = terrainPos + Vector(sampleDist, 0, 0);
+			
+			northPos[1] = SCR_TerrainHelper.GetTerrainY(northPos);
+			eastPos[1] = SCR_TerrainHelper.GetTerrainY(eastPos);
+			
+			vector northVec = northPos - terrainPos;
+			vector eastVec = eastPos - terrainPos;
+			vector terrainNormal = (northVec * eastVec).Normalized();
+			
+			if (terrainNormal[1] > 0.1)
+			{
+				spawnParams.Transform[1] = terrainNormal;
+				vector forward = spawnParams.Transform[2];
+				vector right = (terrainNormal * forward).Normalized();
+				spawnParams.Transform[0] = right;
+				spawnParams.Transform[2] = (right * terrainNormal).Normalized();
+			}
+			
+			spawnParams.Transform[3] = terrainPos;
+		}
+		else
+		{
+			position[1] = SCR_TerrainHelper.GetTerrainY(position);
+			spawnParams.Transform[3] = position;
+		}
+		
+		Resource resource = Resource.Load(config.m_sPrefabResource);
+		if (!resource || !resource.IsValid())
+			return;
+		
+		IEntity effect = GetGame().SpawnEntityPrefab(resource, null, spawnParams);
+		
+		if (effect)
+		{
+			effect.SetName("wheel_dirt_effect_" + wheelIndex.ToString());
+			m_aSpawnedEffects.Insert(effect);
+			s_iTotalTracksSpawned++;
+			
+			float currentTime = GetGame().GetWorld().GetWorldTime();
+			m_mTrackSpawnTimes.Set(effect, currentTime);
+			
+			if (m_bEnableCleanup)
+				GetGame().GetCallqueue().CallLater(CleanupEffect, m_fCleanupDelay * 1000, false, effect);
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void CalculateWheelRotation(int wheelIndex, vector vehicleTransform[4], out vector wheelTransform[4])
+	{
+		wheelTransform[0] = vehicleTransform[0];
+		wheelTransform[1] = vehicleTransform[1];
+		wheelTransform[2] = vehicleTransform[2];
+		wheelTransform[3] = vehicleTransform[3];
+		
+		if ((wheelIndex == 0 || wheelIndex == 1) && m_Simulation.WheelHasContact(wheelIndex))
+		{
+			vector currentPos = m_Simulation.WheelGetContactPosition(wheelIndex);
+			
+			if (!m_aPreviousWheelPos)
+				m_aPreviousWheelPos = {};
+				
+			while (m_aPreviousWheelPos.Count() <= wheelIndex)
+				m_aPreviousWheelPos.Insert(Vector(0,0,0));
+			
+			vector prevPos = m_aPreviousWheelPos[wheelIndex];
+			
+			if (prevPos != Vector(0,0,0))
+			{
+				vector wheelMovement = currentPos - prevPos;
+				if (wheelMovement.Length() > 0.01)
+				{
+					wheelMovement = wheelMovement.Normalized();
+					wheelTransform[2] = wheelMovement;
+					wheelTransform[0] = (wheelTransform[1] * wheelTransform[2]).Normalized();
+				}
+			}
+			
+			m_aPreviousWheelPos[wheelIndex] = currentPos;
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	bool QueryCallback(IEntity entity)
+	{
+		if (entity && m_aNearbyEntities)
+			m_aNearbyEntities.Insert(entity);
+		return true;
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	void CleanupEffect(IEntity effect)
+	{
+		if (!effect || !effect.GetWorld())
+		{
+			if (m_aSpawnedEffects)
+			{
+				int index = m_aSpawnedEffects.Find(effect);
+				if (index != -1)
+				{
+					m_aSpawnedEffects.RemoveOrdered(index);
+					s_iTotalTracksSpawned--;
+					
+					if (m_bDebug)
+						Print("Decremented global counter on null cleanup: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+				}
+			}
+			return;
+		}
+			
+		if (m_aSpawnedEffects)
+		{
+			int index = m_aSpawnedEffects.Find(effect);
+			if (index != -1)
+				m_aSpawnedEffects.RemoveOrdered(index);
+		}
+		
+		if (m_mTrackSpawnTimes.Contains(effect))
+			m_mTrackSpawnTimes.Remove(effect);
+			
+		SCR_EntityHelper.DeleteEntityAndChildren(effect);
+		s_iTotalTracksSpawned--;
+		
+		if (m_bDebug)
+			Print("Decremented global counter on cleanup: " + s_iTotalTracksSpawned.ToString(), LogLevel.NORMAL);
+		
+		// Safety check - prevent negative counter
+		if (s_iTotalTracksSpawned < 0)
+		{
+			Print("WARNING: Global track counter went negative, resetting to 0", LogLevel.ERROR);
+			s_iTotalTracksSpawned = 0;
+		}
+	}
+	
+	//------------------------------------------------------------------------------------------------
+	override void OnDelete(IEntity owner)
+	{
+		GetGame().GetCallqueue().Remove(CleanupEffect);
+		
+		if (m_aSpawnedEffects)
+		{
+			foreach (IEntity effect : m_aSpawnedEffects)
+			{
+				if (effect)
+				{
+					SCR_EntityHelper.DeleteEntityAndChildren(effect);
+					s_iTotalTracksSpawned--;
+				}
+			}
+			m_aSpawnedEffects.Clear();
+		}
+		
+		if (m_mTrackSpawnTimes)
+			m_mTrackSpawnTimes.Clear();
+		
+		super.OnDelete(owner);
+	}
+}
