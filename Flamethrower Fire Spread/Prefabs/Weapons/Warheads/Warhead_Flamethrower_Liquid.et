@@ -1,0 +1,16 @@
+GenericEntity : "{D584F2FFFDC7DE49}Prefabs/Weapons/Warheads/Warhead_Shell_HE.et" {
+ ID "9D9BE68EA2672F76"
+ components {
+  BaseTriggerComponent "{55129E81CBAA1390}" {
+   PROJECTILE_EFFECTS {
+    SpawnPrefabEffect "{686A28334D25006F}" {
+     EffectPrefab "{F4F3A43C45D73FD3}Prefabs/Fire_Spread.et"
+    }
+    SpawnPrefabEffect "{68B4FEC97BBCE177}" {
+     EffectPrefab "{E8772B12D4B9A875}Prefabs/Generic_Predecal_forspawning.et"
+    }
+   }
+  }
+ }
+ coords 1201.444 39.122 2422.373
+}

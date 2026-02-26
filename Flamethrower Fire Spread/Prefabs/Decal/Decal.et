@@ -1,0 +1,15 @@
+DecalEntity {
+ ID "68B369C56B279118"
+ components {
+  RplComponent "{68B369C5B1BD3601}" {
+  }
+  Hierarchy "{68B369C5BC9A23F8}" {
+  }
+ }
+ coords 2217.372 53.469 2886.24
+ angles -90 -180 -180
+ scale 2.33
+ Lifetime 60
+ ClutterOccluder 1
+ Mat "{6FE49D82D358226F}Assets/Decals/Miscellaneous/Damage/Damage_Burnt_02.emat"
+}

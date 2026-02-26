@@ -1,0 +1,17 @@
+GenericEntity {
+ ID "68B1267B33C251F2"
+ components {
+  FireSpreadNode "{68B1267B1CB12C32}" {
+   m_rParticleEffect "{2967AED12939897C}Particles/Weapon/1.ptc"
+   m_rDecalPrefab "{E8772B12D4B9A875}Prefabs/Predecal.et"
+   m_rDamagePrefab "{203D477520441F7E}Prefabs/Systems/DamageAreas/DamageArea_Flamethrower.et"
+   m_fTotalDuration 5
+   m_fParticleLoopInterval 0
+  }
+  RplComponent "{68B369D90A7682A4}" {
+  }
+  Hierarchy "{68B369D9353EAA03}" {
+  }
+ }
+ coords 1179.524 39.021 2431.661
+}

@@ -1,0 +1,19 @@
+GenericEntity {
+ ID "68B369C243643164"
+ components {
+  RplComponent "{68B369C266BD084F}" {
+  }
+  Hierarchy "{68B369C2612A15C4}" {
+  }
+ }
+ coords 2218.162 53.531 2889.903
+ {
+  DecalEntity : "{094507D48D6B873C}Prefabs/Decal.et" {
+   ID "68B369C243643162"
+   coords 0 0 0
+   angles -87.945 0 0
+   FarPlane 1.04
+   TerrainOnly 1
+  }
+ }
+}
