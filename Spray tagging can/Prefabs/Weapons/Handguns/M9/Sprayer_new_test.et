@@ -1,0 +1,332 @@
+GenericEntity : "{EE7028E9DF49763A}Prefabs/Weapons/Core/Handgun_Base.et" {
+ ID "CFBAA4B725411E45"
+ components {
+  WeaponSoundComponent "{5A8685198A9AEEDD}" {
+   Enabled 1
+   Filenames {
+    "{7BA8C140EF51A3EB}Sounds/Weapons/Handguns/M9/spray_acp.acp" "{FF5A03919BDB8B9E}Sounds/Weapons/Handguns/M9/Weapons_Handguns_M9_Handling.acp" "{430CD8162D17C2FF}Sounds/Weapons/_SharedData/Melee/Weapons_Melee_Pistol.acp" "{8D040E18DFEC29AF}Sounds/Weapons/_SharedData/PickUp/Weapons_PickUp_HandGun.acp" "{D32144A00CA494A6}Sounds/Weapons/_SharedData/Drop/Weapons_Drop_Pistol.acp" "{62A8FCC1AB0B7AA5}Sounds/Weapons/_SharedData/Drop/Weapons_Drop_Physical_PIstol.acp"
+   }
+  }
+  MeshObject "{CFBAA4B701F95D69}" {
+   Object "{410A074951AB6520}Assets/Spraycan/untitled.xob"
+  }
+  RigidBody "{68F7717F3A6C8301}" {
+   SimState None
+   ModelGeometry 1
+  }
+  SCR_MeleeWeaponProperties "{68F7717F3A6C833D}" {
+  }
+  SCR_SprayRaycastComponent "{68F7717EA13D4E80}" {
+   Enabled 0
+   m_fMaxRange 20
+   m_fDecalSize 1.8
+  }
+  SCR_SpraySizeManagerComponent "{A2B3C4D5E6F70011}" {
+   m_aPresets {
+    SCR_SizePreset "{68F96024B3C4AE82}" {
+     m_sName "Small"
+     m_fDecalSize 0.2
+     m_fMinSpacing 0.075
+    }
+    SCR_SizePreset "{68F96024B3C4AEF7}" {
+     m_sName "Medium"
+     m_fDecalSize 0.4
+     m_fMinSpacing 0.15
+    }
+    SCR_SizePreset "{68F96024B3C4AEF0}" {
+     m_sName "Large"
+     m_fDecalSize 0.8
+     m_fMinSpacing 0.3
+    }
+    SCR_SizePreset "{68F96024B3C4AEFD}" {
+     m_sName "XL"
+     m_fDecalSize 1.5
+     m_fMinSpacing 0.56
+    }
+   }
+   m_aModes {
+    SCR_SprayModePreset "{A2B3C4D5E6F70040}" {
+     m_sName "Free Paint"
+     m_aColors {
+      SCR_SprayColorEntry "{68F9602F11767403}" {
+       m_sName "White"
+       m_sMaterial "{5DFF25005AF84E20}Assets/Decals/Paint/Vibrant/Data/Paint_White.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767474}" {
+       m_sName "Yellow"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Yellow.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767471}" {
+       m_sName "Orange"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Orange.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F1176747A}" {
+       m_sName "Red"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Red.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767467}" {
+       m_sName "Purple"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Purple.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767461}" {
+       m_sName "Blue"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Blue.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F1176746D}" {
+       m_sName "Green"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Green.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767456}" {
+       m_sName "Black"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Black.emat"
+      }
+     }
+    }
+    SCR_SprayModePreset "{A2B3C4D5E6F70041}" {
+     m_sName "Stencil"
+     m_bRandomRotation 0
+     m_aColors {
+      SCR_SprayColorEntry "{68FC930F469095CE}" {
+       m_sName "Sam"
+       m_sMaterial "{AC1AA54D89EB750C}Assets/Decal opaticy maps/Paint_Sam.emat"
+      }
+      SCR_SprayColorEntry "{68FC930F12709D9C}" {
+       m_sName "X"
+       m_sMaterial "{E93B2D2731628BE0}Assets/Decal opaticy maps/Paint_X.emat"
+      }
+      SCR_SprayColorEntry "{68FD36AF77329AE8}" {
+       m_sName "USA"
+       m_sMaterial "{D1904111E70638F0}Assets/Decal opaticy maps/Paint_USA.emat"
+      }
+      SCR_SprayColorEntry "{68FD36AF71822BE1}" {
+       m_sName "USSR"
+       m_sMaterial "{81B51AC0E7F4AB42}Assets/Decal opaticy maps/Paint_USSR.emat"
+      }
+      SCR_SprayColorEntry "{68FD71553B52BF97}" {
+       m_sName "Cat"
+       m_sMaterial "{D8DB0787C1AFF4B7}Assets/Decal opaticy maps/Paint_Cat.emat"
+      }
+     }
+    }
+   }
+   m_aOpacities {
+    SCR_SprayOpacityPreset "{68F9602F11767445}" {
+     m_sName "Heavy"
+     m_fAlpha 1
+    }
+    SCR_SprayOpacityPreset "{68F9602F1176744B}" {
+     m_sName "Medium"
+     m_fAlpha 0.9
+    }
+    SCR_SprayOpacityPreset "{68F9602F117674B3}" {
+     m_sName "Light"
+     m_fAlpha 0.8
+    }
+   }
+   m_aBrightnesses {
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70022}" {
+     m_sName "Dim"
+     m_fBrightness 0.35
+    }
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70021}" {
+     m_sName "Medium"
+     m_fBrightness 0.6
+    }
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70020}" {
+     m_sName "Full"
+     m_fBrightness 1
+    }
+   }
+   m_iAmmoCount 100
+   m_bShowLaserDot 0
+  }
+  SCR_WeaponAttachmentsStorageComponent "{51F080D5CE45A1A2}" {
+   Attributes SCR_ItemAttributeCollection "{51F080D5C64F12C5}" {
+    ItemDisplayName WeaponUIInfo "{5222CB0701437228}" {
+     Name "#AR-Weapon_BerettaM9_Name"
+     Description "#AR-Weapon_BerettaM9_Description"
+    }
+    ItemPhysAttributes ItemPhysicalAttributes "{68F7717F3A6C8336}" {
+     Weight 0.91
+     SizeSetupStrategy Volume
+     ItemVolume 250
+     RestingUP Left
+     RestingAdditiveOffsetLS -0.02 0 0
+    }
+    ItemAnimationAttributes ItemAnimationAttributes "{5284960F659FDDA7}" {
+     AnimationInstance "{41AABAE44257A657}anims/workspaces/player/player_main_pistol.asi"
+     AnimationIKPose "{6AAD163C7072AF0F}Assets/Weapons/Handguns/M9/anims/anm/p_m9_ik.anm"
+    }
+    CustomAttributes {
+     SCR_RecoilCameraShakeParams "{58DEF2AB0413E346}" {
+     }
+    }
+   }
+  }
+  WeaponComponent "{CFBAA4B706BA66E8}" {
+   components {
+    AttachmentSlotComponent "{B502E4DC8A9E835E}" {
+     Enabled 0
+    }
+    SightsComponent "{BB23A637957CFFF8}" {
+     SightsPosition PointInfo "{BB23A63796688E69}" {
+      PivotID "eye"
+      Offset 0 0 -0.2
+     }
+     SightsRanges {
+      SightRangeInfo "{68F7717F3A6C832E}" {
+       WeaponPosition PointInfo "{68F7717F3A6C832C}" {
+        Offset 0 -0.0006 0
+       }
+      }
+     }
+     SightsPointFront PointInfo "{68F7717F3A6C8322}" {
+      Offset 0 0.0569 0.1306
+     }
+     SightsPointRear PointInfo "{68F7717F3A6C8323}" {
+      Offset 0 0.0567 -0.0281
+     }
+     m_iOpticDOFDistanceScale 225
+    }
+    MuzzleComponent "{50F64C45E7271D47}" {
+     Enabled 1
+     components {
+      CaseEjectingEffectComponent "{5122AAD190FCA21D}" {
+       Enabled 0
+       ParticleEffect "{C8C0B00F66A2C6D2}Particles/Weapon/Casing_9x19.ptc"
+       EffectPosition EntitySlotInfo "{513A9384CEFB83CB}" {
+        PivotID "barrel_chamber"
+        Offset 0 0.01 -0.025
+        Angles 0 90 0
+       }
+      }
+      CaseEjectingEffectComponent "{68F7717F3A6C8324}" {
+       Enabled 0
+       ParticleEffect "{81FDB0E06C9B598D}Particles/Weapon/Smoke_M9.ptc"
+       EffectPosition EntitySlotInfo "{52C893361168749D}" {
+        PivotID "barrel_muzzle"
+       }
+       HasSound 0
+      }
+      SCR_MuzzleEffectComponent "{C9B3271BB22CDB68}" {
+       ParticleEffect ""
+       EffectPosition EntitySlotInfo "{C9B3271BB85B5D32}" {
+        PivotID "Barrel_muzzle"
+       }
+      }
+     }
+     MuzzleEndPositions {
+      PointInfo "{B80A64F4B6CFB9BF}" {
+       PivotID "Barrel_muzzle"
+      }
+     }
+     ProjectileSpawnPositions {
+      PointInfo "{50F64C476EC435CA}" {
+       PivotID "Barrel_muzzle"
+      }
+     }
+     FireModes {
+      BaseFireMode "{B80A64F4A8EF8333}" {
+       MaxBurst -1
+       UIName "Auto"
+      }
+     }
+     MagazineWell MagazineWellM9Beretta "{68F7717F3A6C8359}" {
+     }
+     DispersionDiameter 0.4
+     DispersionRange 140
+     MagazinePosition InventoryStorageSlot "{B80A64F4C834E9CB}" {
+      InspectionWidgetOffset 0 -0.0322 -0.0327
+     }
+     MagazineTemplate "{6CDB4CC8CA4F9B47}Prefabs/Weapons/Magazines/Spray_mag.et"
+    }
+    WeaponAnimationComponent "{60B4EA76EB15F6E0}" {
+     AnimGraph "{6BEAF3C123F42BCC}Assets/Weapons/Handguns/workspaces/pistol_type.agr"
+     AnimInstance "{D09FB3E645475221}Assets/Weapons/Handguns/workspaces/pistol_main_beretta.asi"
+     StartNode "IdleFireSTM"
+     AnimInjection AnimationAttachmentInfo "{68F7717F3A6C835D}" {
+      AnimGraph "{6BEAF3C123F42BCC}Assets/Weapons/Handguns/workspaces/pistol_type.agr"
+      AnimInstance "{99EBECB3B5D9BB30}Assets/Weapons/Handguns/workspaces/player_main_m9.asi"
+      StartNode "IdleFireSTM"
+      BindingName "Weapon"
+     }
+     BindWithInjection 1
+     AnimVariablesToBind + {
+      "State"
+     }
+    }
+   }
+   SoundInt 1010200
+   UIInfo WeaponUIInfo "{CC3BA6A2C42F09F4}" {
+    Name "#AR-Weapon_BerettaM9_Name"
+    Description "#AR-Weapon_BerettaM9_Description"
+    Icon ""
+   }
+  }
+  ActionsManagerComponent "{A29AE67FF4D82B0F}" {
+   ActionContexts {
+    UserActionContext "{5A1E58F7B04F9BE5}" {
+     Position PointInfo "{68F7717F3A6C8356}" {
+      PivotID "slot_magazine"
+      Offset 0 0.063 0.0476
+     }
+     Radius 0.05
+     Omnidirectional 0
+     VisibilityAngle 0
+     FilterActionsUsingCache 0
+    }
+    UserActionContext "{5A1E58F7AED270D4}" {
+     Position PointInfo "{68F7717F3A6C8357}" {
+      PivotID "w_fire_mode"
+      Angles 0 -90 90
+     }
+     Radius 0.05
+     Omnidirectional 0
+     VisibilityAngle 0
+    }
+    UserActionContext "{A2B3C4D5E6F70012}" {
+     ContextName "SpraySize"
+     Position PointInfo "{A2B3C4D5E6F70013}" {
+      PivotID "Barrel_muzzle"
+      Offset 0 0 -0.0598
+     }
+     Radius 0.15
+     Omnidirectional 1
+    }
+   }
+   additionalActions {
+    SCR_SprayAdjustSizeAction "{A2B3C4D5E6F70014}" {
+     ParentContextList {
+      "SpraySize"
+     }
+     VisibilityRange 2
+    }
+    SCR_SprayCycleColorAction "{A2B3C4D5E6F70015}" {
+     ParentContextList {
+      "SpraySize"
+     }
+     VisibilityRange 2
+    }
+    SCR_SprayCycleOpacityAction "{A2B3C4D5E6F70016}" {
+     ParentContextList {
+      "SpraySize"
+     }
+     VisibilityRange 2
+    }
+    SCR_SprayCycleBrightnessAction "{A2B3C4D5E6F70017}" {
+     ParentContextList {
+      "SpraySize"
+     }
+     VisibilityRange 2
+    }
+    SCR_SprayCycleModeAction "{A2B3C4D5E6F70042}" {
+     ParentContextList {
+      "SpraySize"
+     }
+     VisibilityRange 2
+    }
+   }
+  }
+ }
+ coords 2748.29 78.146 1629.228
+}

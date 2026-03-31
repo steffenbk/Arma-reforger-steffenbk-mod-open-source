@@ -1,0 +1,17 @@
+MetaFileClass {
+ Name "{602B313022A7CD8E}Assets/Decals/Paint/Neon/Data/Neon_Magenta.emat"
+ Configurations {
+  EMATResourceClass PC {
+  }
+  EMATResourceClass XBOX_ONE : PC {
+  }
+  EMATResourceClass XBOX_SERIES : PC {
+  }
+  EMATResourceClass PS4 : PC {
+  }
+  EMATResourceClass PS5 : PC {
+  }
+  EMATResourceClass HEADLESS : PC {
+  }
+ }
+}

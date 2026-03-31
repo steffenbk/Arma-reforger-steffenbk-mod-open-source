@@ -1,0 +1,123 @@
+GenericEntity : "{A3C4D5E6F7001100}Prefabs/Weapons/SprayCan/SprayCan_Base.et" {
+ ID "CFBAA4B725411E45"
+ components {
+  SCR_SpraySizeManagerComponent "{A2B3C4D5E6F70011}" {
+   m_aPresets {
+    SCR_SizePreset "{68F96024B3C4AE82}" {
+     m_sName "Small"
+     m_fDecalSize 0.2
+     m_fMinSpacing 0.075
+    }
+    SCR_SizePreset "{68F96024B3C4AEF7}" {
+     m_sName "Medium"
+     m_fDecalSize 0.4
+     m_fMinSpacing 0.15
+    }
+    SCR_SizePreset "{68F96024B3C4AEF0}" {
+     m_sName "Large"
+     m_fDecalSize 0.8
+     m_fMinSpacing 0.3
+    }
+    SCR_SizePreset "{68F96024B3C4AEFD}" {
+     m_sName "XL"
+     m_fDecalSize 1.5
+     m_fMinSpacing 0.56
+    }
+   }
+   m_aModes {
+    SCR_SprayModePreset "{A2B3C4D5E6F70040}" {
+     m_sName "Free Paint"
+     m_aColors {
+      SCR_SprayColorEntry "{68F9602F11767403}" {
+       m_sName "White"
+       m_sMaterial "{5DFF25005AF84E20}Assets/Decals/Paint/Vibrant/Data/Paint_White.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767474}" {
+       m_sName "Yellow"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Yellow.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767471}" {
+       m_sName "Orange"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Orange.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F1176747A}" {
+       m_sName "Red"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Red.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767467}" {
+       m_sName "Purple"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Purple.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767461}" {
+       m_sName "Blue"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Blue.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F1176746D}" {
+       m_sName "Green"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Green.emat"
+      }
+      SCR_SprayColorEntry "{68F9602F11767456}" {
+       m_sName "Black"
+       m_sMaterial "Assets/Decals/Paint/Vibrant/Data/Paint_Black.emat"
+      }
+     }
+    }
+    SCR_SprayModePreset "{A2B3C4D5E6F70041}" {
+     m_sName "Stencil"
+     m_bRandomRotation 0
+     m_aColors {
+      SCR_SprayColorEntry "{68FC930F469095CE}" {
+       m_sName "Sam"
+       m_sMaterial "{AC1AA54D89EB750C}Assets/Decal opaticy maps/Paint_Sam.emat"
+      }
+      SCR_SprayColorEntry "{68FC930F12709D9C}" {
+       m_sName "X"
+       m_sMaterial "{E93B2D2731628BE0}Assets/Decal opaticy maps/Paint_X.emat"
+      }
+      SCR_SprayColorEntry "{68FD36AF77329AE8}" {
+       m_sName "USA"
+       m_sMaterial "{D1904111E70638F0}Assets/Decal opaticy maps/Paint_USA.emat"
+      }
+      SCR_SprayColorEntry "{68FD36AF71822BE1}" {
+       m_sName "USSR"
+       m_sMaterial "{81B51AC0E7F4AB42}Assets/Decal opaticy maps/Paint_USSR.emat"
+      }
+      SCR_SprayColorEntry "{68FD71553B52BF97}" {
+       m_sName "Cat"
+       m_sMaterial "{D8DB0787C1AFF4B7}Assets/Decal opaticy maps/Paint_Cat.emat"
+      }
+     }
+    }
+   }
+   m_aOpacities {
+    SCR_SprayOpacityPreset "{68F9602F11767445}" {
+     m_sName "Heavy"
+     m_fAlpha 1
+    }
+    SCR_SprayOpacityPreset "{68F9602F1176744B}" {
+     m_sName "Medium"
+     m_fAlpha 0.9
+    }
+    SCR_SprayOpacityPreset "{68F9602F117674B3}" {
+     m_sName "Light"
+     m_fAlpha 0.8
+    }
+   }
+   m_aBrightnesses {
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70022}" {
+     m_sName "Dim"
+     m_fBrightness 0.35
+    }
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70021}" {
+     m_sName "Medium"
+     m_fBrightness 0.6
+    }
+    SCR_SprayBrightnessPreset "{A2B3C4D5E6F70020}" {
+     m_sName "Full"
+     m_fBrightness 1
+    }
+   }
+   m_iAmmoCount 100
+  }
+ }
+}

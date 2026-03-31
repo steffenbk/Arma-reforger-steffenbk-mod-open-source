@@ -1,0 +1,12 @@
+MatPBRDecal {
+ Color 0.02 0.02 0.02 1
+ DiffuseIBL 1 1 1 1
+ AlphaTest 0.1
+ AlphaMul 4.0
+ MetalnessScale 0
+ DielectricReflectance 0.02
+ OpacityMap "{69EF4640C2B7CDAB}Assets/Decals/Blood/Blood/blood_7_Mask.edds"
+ DecalCategory Static
+ GBufferNormal 0
+ GBufferAO 0
+}

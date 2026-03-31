@@ -1,0 +1,17 @@
+MetaFileClass {
+ Name "{7A01B8D7AFB7ED17}Assets/Decals/Markings/CrossWalks/Data/CrossWalk_01.emat"
+ Configurations {
+  EMATResourceClass PC {
+  }
+  EMATResourceClass XBOX_ONE : PC {
+  }
+  EMATResourceClass XBOX_SERIES : PC {
+  }
+  EMATResourceClass PS4 : PC {
+  }
+  EMATResourceClass PS5 : PC {
+  }
+  EMATResourceClass HEADLESS : PC {
+  }
+ }
+}

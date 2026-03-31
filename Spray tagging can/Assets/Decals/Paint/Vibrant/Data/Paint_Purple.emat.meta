@@ -1,0 +1,17 @@
+MetaFileClass {
+ Name "{57EDC88F565A76B3}Assets/Decals/Paint/Vibrant/Data/Paint_Purple.emat"
+ Configurations {
+  EMATResourceClass PC {
+  }
+  EMATResourceClass XBOX_ONE : PC {
+  }
+  EMATResourceClass XBOX_SERIES : PC {
+  }
+  EMATResourceClass PS4 : PC {
+  }
+  EMATResourceClass PS5 : PC {
+  }
+  EMATResourceClass HEADLESS : PC {
+  }
+ }
+}

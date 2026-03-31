@@ -1,0 +1,12 @@
+MatPBRDecal {
+ Color 1 1 1 1
+ DiffuseIBL 1 1 1 1
+ AlphaTest 0.1
+ AlphaMul 4
+ MetalnessScale 0
+ DielectricReflectance 0.02
+ BCRMap "{BC8570B06AA3E08D}Assets/Decal opaticy maps/Flag/usa.edds"
+ DecalCategory Static
+ GBufferNormal 0
+ GBufferAO 0
+}

@@ -1,0 +1,12 @@
+MatPBRDecal {
+ Color 1 1 1 1
+ DiffuseIBL 1 1 1 1
+ AlphaTest 0.1
+ AlphaMul 4
+ MetalnessScale 0
+ DielectricReflectance 0.02
+ OpacityMap "{5B8ADC511E8B4A41}Assets/Decal opaticy maps/Un22titled.edds"
+ DecalCategory Static
+ GBufferNormal 0
+ GBufferAO 0
+}

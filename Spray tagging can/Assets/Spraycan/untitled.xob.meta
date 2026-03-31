@@ -1,0 +1,66 @@
+MetaFileClass {
+ Name "{410A074951AB6520}Assets/Spraycan/untitled.xob"
+ Configurations {
+  FBXResourceClass PC {
+   ExportSkinning 1
+   MaterialAssigns {
+    MaterialAssignClass "{68F81160404D38A3}" {
+     SourceMaterial "Metal_Rim"
+     AssignedMaterial "{0DD48328B1527756}Assets/Props/Industrial/BarrelMetal_01/Data/BarrelMetal_01_red.emat"
+    }
+    MaterialAssignClass "{68F81160404D3882}" {
+     SourceMaterial "Paper"
+     AssignedMaterial "{69D6B6EEAB1FBD42}Assets/Spraycan/Data/Paper.emat"
+    }
+    MaterialAssignClass "{68F81160404D3880}" {
+     SourceMaterial "Top"
+     AssignedMaterial "{827B822620AC0C6A}Assets/Props/Industrial/BarrelMetal_01/Data/BarrelMetal_01_green.emat"
+    }
+    MaterialAssignClass "{68F81160404D388E}" {
+     SourceMaterial "Cap"
+     AssignedMaterial "{827B822620AC0C6A}Assets/Props/Industrial/BarrelMetal_01/Data/BarrelMetal_01_green.emat"
+    }
+    MaterialAssignClass "{68F81160404D388F}" {
+     SourceMaterial "Material"
+     AssignedMaterial "{AFC98523700ACD2B}Assets/Weapons/Rifles/M14/Data/Body_Metal.emat"
+    }
+   }
+   MeshParams {
+    MeshParam "Cylinder.001" {
+    }
+   }
+   GeometryParams {
+    GeometryParam UCL_body {
+     LayerPreset "PropView"
+     SurfaceProperties {
+      "{3B2D2687F56BB4EF}Common/Materials/Game/WeaponParts/weapon_metal.gamemat"
+     }
+     Mass 0
+     Margin 0
+    }
+   }
+   Common TXOCommonClass "{68F7716BF1123D4B}" : "{0877E7C4BB2B2C9A}Configs/System/ResourceTypes/PC/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass XBOX_ONE : PC {
+   Common TXOCommonClass "{68F7716BF1125F66}" : "{9D5B6207F7628CE2}Configs/System/ResourceTypes/XBOX_ONE/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass XBOX_SERIES : PC {
+   Common TXOCommonClass "{68F7716BF1126844}" : "{DD9F02115C764647}Configs/System/ResourceTypes/XBOX_SERIES/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass PS4 : PC {
+   Common TXOCommonClass "{68F7716BF1127B82}" : "{53EC476BC921D99A}Configs/System/ResourceTypes/PS4/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass PS5 : PC {
+   Common TXOCommonClass "{68F7716BF1127A0C}" : "{F62AA8E7B8EA9D26}Configs/System/ResourceTypes/PS5/MeshObjectCommon.conf" {
+   }
+  }
+  FBXResourceClass HEADLESS : PC {
+   Common TXOCommonClass "{68F7716BF11270F8}" : "{3A5B3356978039E8}Configs/System/ResourceTypes/HEADLESS/MeshObjectCommon.conf" {
+   }
+  }
+ }
+}

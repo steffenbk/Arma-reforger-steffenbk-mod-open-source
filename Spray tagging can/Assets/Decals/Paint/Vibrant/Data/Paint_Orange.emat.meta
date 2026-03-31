@@ -1,0 +1,17 @@
+MetaFileClass {
+ Name "{A4AEE6C58C8CC3DB}Assets/Decals/Paint/Vibrant/Data/Paint_Orange.emat"
+ Configurations {
+  EMATResourceClass PC {
+  }
+  EMATResourceClass XBOX_ONE : PC {
+  }
+  EMATResourceClass XBOX_SERIES : PC {
+  }
+  EMATResourceClass PS4 : PC {
+  }
+  EMATResourceClass PS5 : PC {
+  }
+  EMATResourceClass HEADLESS : PC {
+  }
+ }
+}

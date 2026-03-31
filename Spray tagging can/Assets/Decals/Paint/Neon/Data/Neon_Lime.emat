@@ -1,0 +1,15 @@
+MatPBRDecal {
+ Color 1 8 0 1
+ DiffuseIBL 1 1 1 1
+ AlphaTest 0.1
+ AlphaMul 4.0
+ BlendMode Additive
+ MetalnessScale 0
+ DielectricReflectance 0.02
+ BCRMap "{D4D5106E34010D1A}Assets/_SharedData/Plaster/ST_Plaster_Bare_04_BCR.edds"
+ OpacityMap "{69EF4640C2B7CDAB}Assets/Decals/Blood/Blood/blood_7_Mask.edds"
+ NMOMap "{1C5B574FA1CE7490}Assets/_SharedData/Concrete/ST_Concrete_Rough_01_NMO.edds"
+ DecalCategory Static
+ GBufferNormal 1
+ GBufferAO 1
+}

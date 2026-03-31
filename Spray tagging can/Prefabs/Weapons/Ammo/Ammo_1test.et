@@ -1,0 +1,19 @@
+Projectile : "{67FED88E5085F63F}Prefabs/Weapons/Core/Ammo_Bullet_Base.et" {
+ ID "DA5C6308000CDEF2"
+ components {
+  CollisionTriggerComponent "{62EAC20FFD251EF8}" : "{6CCC3AAFB5A64CE0}Prefabs/Weapons/Core/Components/CollisionTrigger_API.ct" {
+   Enabled 0
+  }
+  SCR_SprayProjectile "{A1B2C3D4E5F60099}" {
+   m_fMaxRange 20
+   m_fDecalLifetime 1000
+   m_bDebug 0
+  }
+  ShellMoveComponent "{851AA4A2AE0A5691}" {
+   Enabled 0
+  }
+ }
+ coords 1394.919 39.5 2210.138
+ ProjectileModel ""
+ CartridgeModel ""
+}
