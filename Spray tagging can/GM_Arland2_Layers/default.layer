@@ -3578,16 +3578,29 @@ $grp GenericEntity : "{6CDB4CC8CA4F9B47}Prefabs/Weapons/Magazines/Spray_mag.et" 
  {
   coords 1398.877 39.5 2206.236
  }
+ {
+  coords 1394.853 39.5 2206.831
+ }
 }
 GenericEntity : "{97064F8597F2D7BF}Prefabs/Weapons/Explosives/DemoBlock_TSh400g/DemoBlock_TSh400g.et" {
  coords 2702.111 79.62 1682.653
  angles -86.702 145.189 91.274
  scale 84.436
 }
-GenericEntity : "{A113875110F0DF09}Prefabs/Weapons/Magazines/Spray_mag2.et" {
+GenericEntity : "{A113875110F0DF09}Prefabs/Weapons/Magazines/old/Spray_mag2.et" {
  components {
   MagazineComponent "{CA6BE4D6B4DAFD69}" {
    AmmoConfig "{61450A9C6DDA0F1E}Configs/Weapons/Ammo/Spray_config2.conf"
+  }
+  MeshObject "{CA6BE4D6A23F8EF0}" {
+   Enabled 0
+   Object ""
+  }
+  RigidBody "{571B0382401B1385}" {
+   Enabled 0
+  }
+  ActionsManagerComponent "{F092E6B0537754FD}" {
+   Enabled 0
   }
  }
  coords 1395.605 39.5 2211.135
@@ -3602,8 +3615,11 @@ $grp GenericEntity : "{A3C4D5E6F7001200}Prefabs/Weapons/SprayCan/SprayCan.et" {
  {
   coords 1380.66 39 2211.612
  }
+ {
+  coords 1386.361 39 2203.969
+ }
 }
-$grp Projectile : "{A52FB0CC1BFB139D}Prefabs/Weapons/Ammo/Ammo_1test.et" {
+$grp Projectile : "{A52FB0CC1BFB139D}Prefabs/Weapons/Ammo/Spray_ammo.et" {
  {
   coords 1394.919 39.5 2210.138
  }
