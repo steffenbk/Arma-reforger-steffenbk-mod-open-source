@@ -231,7 +231,7 @@ GenericEntity : "{EE7028E9DF49763A}Prefabs/Weapons/Core/Handgun_Base.et" {
        UIName "Auto"
       }
      }
-     MagazineWell MagazineWellM9Beretta "{68F7717F3A6C8359}" {
+     MagazineWell MagazineWellSprayCan "{68F7717F3A6C8359}" {
      }
      DispersionDiameter 0.4
      DispersionRange 140

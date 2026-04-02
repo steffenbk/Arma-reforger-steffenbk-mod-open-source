@@ -5,6 +5,8 @@ GenericEntity : "{DFFBF5F097FCF797}Prefabs/Weapons/Magazines/Magazine_9x19_M9_15
    WeightPerAmmo 0
   }
   MagazineComponent "{CA6BE4D6B4DAFD69}" {
+   MagazineWell MagazineWellSprayCan "{39D3A791ABFFFA3C}" {
+   }
    MaxAmmo 9000
    AmmoConfig "{E19D453CB334030D}Configs/Weapons/Ammo/Spray_config.conf"
   }
