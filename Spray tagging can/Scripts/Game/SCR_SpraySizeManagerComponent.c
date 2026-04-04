@@ -93,11 +93,12 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 
 	protected ref Shape m_LaserDot;
 
-	protected static int s_iSizeIndex = 0;
-	protected static int s_iModeIndex = 0;
-	protected static int s_iColorIndex = 0;
-	protected static int s_iOpacityIndex = 0;
-	protected static int s_iBrightnessIndex = 0;
+	protected int m_iSizeIndex = 0;
+	protected int m_iModeIndex = 0;
+	protected int m_iColorIndex = 0;
+	protected int m_iOpacityIndex = 0;
+	protected int m_iBrightnessIndex = 0;
+	protected bool m_bWasActive = false;
 
 	//------------------------------------------------------------------------------------------------
 	protected array<ref SCR_SprayColorEntry> GetCurrentColors()
@@ -105,31 +106,13 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aModes || m_aModes.IsEmpty())
 			return null;
 
-		return m_aModes[s_iModeIndex].m_aColors;
+		return m_aModes[m_iModeIndex].m_aColors;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	override protected void OnPostInit(IEntity owner)
 	{
 		super.OnPostInit(owner);
-
-		// Register with the projectile system so it can call AutoCycleColor()
-		SCR_SprayProjectile.SetManager(this);
-
-		if (m_aModes && !m_aModes.IsEmpty())
-			SCR_SprayProjectile.SetRandomRotation(m_aModes[s_iModeIndex].m_bRandomRotation);
-
-		if (m_aPresets && !m_aPresets.IsEmpty())
-			ApplyCurrentSize();
-
-		if (GetCurrentColors() && !GetCurrentColors().IsEmpty())
-			ApplyCurrentColor();
-
-		if (m_aOpacities && !m_aOpacities.IsEmpty())
-			ApplyCurrentOpacity();
-
-		if (m_aBrightnesses && !m_aBrightnesses.IsEmpty())
-			ApplyCurrentBrightness();
 
 		if (m_iAmmoCount > 0)
 			GetGame().GetCallqueue().CallLater(ApplyAmmoCount, 0, false, owner);
@@ -156,7 +139,31 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 
 		BaseWeaponComponent currentWeapon = weaponMgr.GetCurrentWeapon();
 		if (!currentWeapon || currentWeapon.GetOwner() != owner)
+		{
+			m_bWasActive = false;
 			return;
+		}
+
+		// This can is currently held — register as the active manager
+		SCR_SprayProjectile.SetManager(this);
+
+		// On first frame of being held, push all instance settings to the projectile statics
+		if (!m_bWasActive)
+		{
+			m_bWasActive = true;
+			bool randomRot = true;
+			if (m_aModes && !m_aModes.IsEmpty())
+				randomRot = m_aModes[m_iModeIndex].m_bRandomRotation;
+			SCR_SprayProjectile.SetRandomRotation(randomRot);
+			if (m_aPresets && !m_aPresets.IsEmpty())
+				ApplyCurrentSize();
+			if (GetCurrentColors() && !GetCurrentColors().IsEmpty())
+				ApplyCurrentColor();
+			if (m_aOpacities && !m_aOpacities.IsEmpty())
+				ApplyCurrentOpacity();
+			if (m_aBrightnesses && !m_aBrightnesses.IsEmpty())
+				ApplyCurrentBrightness();
+		}
 
 		// Always track player facing for stencil orientation
 		vector charMat[4];
@@ -240,7 +247,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aPresets || m_aPresets.IsEmpty())
 			return;
 
-		s_iSizeIndex = (s_iSizeIndex + 1) % m_aPresets.Count();
+		m_iSizeIndex = (m_iSizeIndex + 1) % m_aPresets.Count();
 		ApplyCurrentSize();
 	}
 
@@ -250,16 +257,16 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aModes || m_aModes.IsEmpty())
 			return;
 
-		s_iModeIndex = (s_iModeIndex + 1) % m_aModes.Count();
+		m_iModeIndex = (m_iModeIndex + 1) % m_aModes.Count();
 
-		SCR_SprayModePreset mode = m_aModes[s_iModeIndex];
+		SCR_SprayModePreset mode = m_aModes[m_iModeIndex];
 		SCR_SprayProjectile.SetRandomRotation(mode.m_bRandomRotation);
 
 		array<ref SCR_SprayColorEntry> colors = mode.m_aColors;
 		if (colors && !colors.IsEmpty())
 		{
-			if (s_iColorIndex >= colors.Count())
-				s_iColorIndex = 0;
+			if (m_iColorIndex >= colors.Count())
+				m_iColorIndex = 0;
 
 			ApplyCurrentColor();
 		}
@@ -272,7 +279,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!colors || colors.IsEmpty())
 			return;
 
-		s_iColorIndex = (s_iColorIndex + 1) % colors.Count();
+		m_iColorIndex = (m_iColorIndex + 1) % colors.Count();
 		ApplyCurrentColor();
 	}
 
@@ -282,14 +289,14 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aOpacities || m_aOpacities.IsEmpty())
 			return;
 
-		s_iOpacityIndex = (s_iOpacityIndex + 1) % m_aOpacities.Count();
+		m_iOpacityIndex = (m_iOpacityIndex + 1) % m_aOpacities.Count();
 		ApplyCurrentOpacity();
 	}
 
 	//------------------------------------------------------------------------------------------------
 	protected void ApplyCurrentSize()
 	{
-		SCR_SizePreset preset = m_aPresets[s_iSizeIndex];
+		SCR_SizePreset preset = m_aPresets[m_iSizeIndex];
 		SCR_SprayProjectile.SetSize(preset.m_fDecalSize, preset.m_fMinSpacing);
 	}
 
@@ -300,7 +307,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!colors || colors.IsEmpty())
 			return;
 
-		SCR_SprayColorEntry entry = colors[s_iColorIndex];
+		SCR_SprayColorEntry entry = colors[m_iColorIndex];
 		SCR_SprayProjectile.SetMaterial(entry.m_sMaterial);
 	}
 
@@ -310,20 +317,20 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aBrightnesses || m_aBrightnesses.IsEmpty())
 			return;
 
-		s_iBrightnessIndex = (s_iBrightnessIndex + 1) % m_aBrightnesses.Count();
+		m_iBrightnessIndex = (m_iBrightnessIndex + 1) % m_aBrightnesses.Count();
 		ApplyCurrentBrightness();
 	}
 
 	//------------------------------------------------------------------------------------------------
 	protected void ApplyCurrentOpacity()
 	{
-		SCR_SprayProjectile.SetOpacity(m_aOpacities[s_iOpacityIndex].m_fAlpha);
+		SCR_SprayProjectile.SetOpacity(m_aOpacities[m_iOpacityIndex].m_fAlpha);
 	}
 
 	//------------------------------------------------------------------------------------------------
 	protected void ApplyCurrentBrightness()
 	{
-		SCR_SprayProjectile.SetBrightness(m_aBrightnesses[s_iBrightnessIndex].m_fBrightness);
+		SCR_SprayProjectile.SetBrightness(m_aBrightnesses[m_iBrightnessIndex].m_fBrightness);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -334,7 +341,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aModes || m_aModes.IsEmpty())
 			return;
 
-		SCR_SprayModePreset mode = m_aModes[s_iModeIndex];
+		SCR_SprayModePreset mode = m_aModes[m_iModeIndex];
 		if (!mode.m_bAutoCycle)
 			return;
 
@@ -342,7 +349,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!colors || colors.Count() <= 1)
 			return;
 
-		s_iColorIndex = (s_iColorIndex + 1) % colors.Count();
+		m_iColorIndex = (m_iColorIndex + 1) % colors.Count();
 		ApplyCurrentColor();
 	}
 
@@ -377,7 +384,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aPresets || m_aPresets.IsEmpty())
 			return "Default";
 
-		return m_aPresets[s_iSizeIndex].m_sName;
+		return m_aPresets[m_iSizeIndex].m_sName;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -386,7 +393,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aModes || m_aModes.IsEmpty())
 			return "Default";
 
-		return m_aModes[s_iModeIndex].m_sName;
+		return m_aModes[m_iModeIndex].m_sName;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -396,7 +403,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!colors || colors.IsEmpty())
 			return "Default";
 
-		return colors[s_iColorIndex].m_sName;
+		return colors[m_iColorIndex].m_sName;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -405,7 +412,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aOpacities || m_aOpacities.IsEmpty())
 			return "Default";
 
-		return m_aOpacities[s_iOpacityIndex].m_sName;
+		return m_aOpacities[m_iOpacityIndex].m_sName;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -414,7 +421,7 @@ class SCR_SpraySizeManagerComponent : ScriptComponent
 		if (!m_aBrightnesses || m_aBrightnesses.IsEmpty())
 			return "Default";
 
-		return m_aBrightnesses[s_iBrightnessIndex].m_sName;
+		return m_aBrightnesses[m_iBrightnessIndex].m_sName;
 	}
 }
 
