@@ -1,0 +1,8 @@
+GameProject {
+ ID "Headtrackingwithwebcam"
+ GUID "6926A0C85C83BC12"
+ TITLE "Head tracking with webcam"
+ Dependencies {
+  "58D0FB3206B6F859"
+ }
+}
